@@ -174,7 +174,7 @@ interactive prompt."
   :group   'hugo)
 
 (defcustom hugo-default-server-flags
-  '(drafts unpublished)
+  '(drafts)
   "The default flags to pass to `jekyll serve'.
 
 Each option is a type of post that is normally ignored by the Hugo
@@ -540,23 +540,23 @@ it exists and do nothing otherwise."
   "Toggle options on and off interactively.
 
 Display a fixed menu of toggles followed by PROMPT-SUFFIX.  Accept any of
-the default choices (d, f, u, q) as well as the supplied CHOICES, which
+the default choices (d, f, e, q) as well as the supplied CHOICES, which
 should be provided as a list of characters (not strings).
 
-If any of the symbols `drafts', `future', or `unpublished' are present in
+If any of the symbols `drafts', `future', or `expired' are present in
 the DEFAULT-TO-ON list, those toggles will be turned on initially.
 
 This function returns the char value from CHOICES selected by the user."
-  (let ((choices (append choices '(?d ?f ?u ?q)))
+  (let ((choices (append choices '(?d ?f ?e ?q)))
         (drafts (memq 'drafts default-to-on))
         (future (memq 'future default-to-on))
-        (unpublished (memq 'unpublished default-to-on))
+        (expired (memq 'expired default-to-on))
         return done)
     (while (not done)
       (let* ((prompt (concat (propertize "(" 'face 'default)
                              (propertize "[d]rafts " 'face (if drafts 'hugo-option-on 'hugo-option-off))
                              (propertize "[f]uture " 'face (if future 'hugo-option-on 'hugo-option-off))
-                             (propertize "[u]npublished" 'face (if unpublished 'hugo-option-on 'hugo-option-off))
+                             (propertize "[e]expired" 'face (if expired 'hugo-option-on 'hugo-option-off))
                              ") " prompt-suffix))
              (choice (read-char-choice prompt choices)))
         (cond ((eq choice ?d)
@@ -565,8 +565,8 @@ This function returns the char value from CHOICES selected by the user."
               ((eq choice ?f)
                (setq future (not future)
                      done nil))
-              ((eq choice ?u)
-               (setq unpublished (not unpublished)
+              ((eq choice ?e)
+               (setq expired (not expired)
                      done nil))
               ((eq choice ?q)
                (setq done t)
@@ -574,7 +574,7 @@ This function returns the char value from CHOICES selected by the user."
               (t (setq return `((choice . ,choice)
                                 (drafts . ,drafts)
                                 (future . ,future)
-                                (unpublished . ,unpublished))
+                                (expired . ,expired))
                        done t)))))
   return))
 
@@ -850,15 +850,31 @@ defined in the configuration."
          (choice (cdr (assoc 'choice config)))
          (drafts (cdr (assoc 'drafts config)))
          (future (cdr (assoc 'future config)))
-         (unpublished (cdr (assoc 'unpublished config))))
+         (expired (cdr (assoc 'expired config))))
     (if choice
         (cond ((eq choice ?s)
                (hugo-toggle-command-window t)
-               (hugo--start-server-process drafts future unpublished))
+               (hugo--start-server-process drafts future expired))
               ((eq choice ?k)
                (progn (hugo-toggle-command-window t)
                       (message "Stopping server...")
                       (hugo--stop-server-process)))))))
+
+(defun hugo-build ()
+  "Initiate a Hugo build upon interactive confirmation."
+  (interactive)
+  (let* ((config (hugo--read-char-with-toggles
+                  "[b] Build, [q] Abort"
+                  '(?b ?q)
+                  hugo-default-build-flags))
+         (choice (cdr (assoc 'choice config)))
+         (drafts (cdr (assoc 'drafts config)))
+         (future (cdr (assoc 'future config)))
+         (expired (cdr (assoc 'expired config))))
+    (when (eq choice ?b)
+      (progn
+        (hugo-toggle-command-window t)
+        (hugo--start-build-process drafts future expired)))))
 
 (defun hugo-show-server ()
   "Pop to the server output buffer."
@@ -882,8 +898,8 @@ the Hugo flags `buildDrafts', `buildFuture', and `buildExpired'."
          (buffer (hugo--prepare-server-buffer))
          (drafts-opt (if with-drafts " --buildDrafts" nil))
          (future-opt (if with-future " --buildFuture" nil))
-         (unpublished-opt (if with-expired " --buildExpired" nil))
-         (command (concat "hugo server" drafts-opt future-opt unpublished-opt)))
+         (expired-opt (if with-expired " --buildExpired" nil))
+         (command (concat "hugo server" drafts-opt future-opt expired-opt)))
     (if (processp (get-buffer-process (hugo--buffer-name-for-type "server")))
         (message "Server already running!")
       (with-current-buffer buffer
@@ -899,6 +915,20 @@ the Hugo flags `buildDrafts', `buildFuture', and `buildExpired'."
       (set-process-sentinel process 'hugo--server-sentinel)
       (set-process-filter process 'hugo--generic-process-filter))
       (hugo--maybe-redraw-status))))
+
+(defun hugo--start-build-process (&optional with-drafts with-future with-expired)
+  "Run the build command.
+
+Options WITH-DRAFTS, WITH-FUTURE, and WITH-EXPIRED correspond to
+the Hugo flags `buildDrafts', `buildFuture', `buildExpired'."
+  (hugo--setup)
+  (let* ((process-buffer (hugo--prepare-process-buffer))
+         (drafts-opt (if with-drafts " --buildDrafts" nil))
+         (future-opt (if with-future " --buildFuture" nil))
+         (expired-opt (if with-expired " --buildExpired" nil))
+         (root (hugo--get-root))
+         (command (string-trim-left (concat drafts-opt future-opt expired-opt))))
+    (hugo--run-hugo-command command)))
 
 (defun hugo--stop-server-process ()
   "Call the stop server command."
