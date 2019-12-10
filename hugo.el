@@ -59,19 +59,16 @@
     (define-key map "s" 'hugo-start-stop-server)
     (define-key map "g" 'hugo-refresh-status)
     (define-key map "c" 'hugo-create-thing)
-    (define-key map "d" 'hugo-deploy)
+    ;;(define-key map "d" 'hugo-deploy) ;; unsupported
     (define-key map "b" 'hugo-build)
     (define-key map "$" 'hugo-show-server)
     (define-key map "!" 'hugo-show-process)
-    (define-key map "i" 'hugo-isolate)
-    (define-key map "I" 'hugo-integrate)
-    (define-key map "n" 'hugo--move-to-next-thing)
-    (define-key map "p" 'hugo--move-to-previous-thing)
-    (define-key map "P" 'hugo-publish-unpublish)
-    (define-key map (kbd "C-n") 'hugo--move-to-next-heading)
-    (define-key map (kbd "C-p") 'hugo--move-to-previous-heading)
-    (define-key map (kbd "<tab>") 'hugo--maybe-toggle-visibility)
-    (define-key map (kbd "<return>") 'hugo--open-at-point)
+    (define-key map "n" 'hugo-move-to-next-thing)
+    (define-key map "p" 'hugo-move-to-previous-thing)
+    (define-key map (kbd "C-n") 'hugo-move-to-next-heading)
+    (define-key map (kbd "C-p") 'hugo-move-to-previous-heading)
+    (define-key map (kbd "<tab>") 'hugo-maybe-toggle-visibility)
+    (define-key map (kbd "<return>") 'hugo-open-at-point)
     map)
   "Get the keymap for the Hugo status buffer.")
 
@@ -89,11 +86,9 @@
 
 (defvar hugo-minor-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c o i") 'hugo-isolate)
-    (define-key map (kbd "C-c o I") 'hugo-integrate)
-    (define-key map (kbd "C-c o p") 'hugo-insert-post-url)
-    (define-key map (kbd "C-c o m") 'hugo-insert-image-url)
-    (define-key map (kbd "C-c o b") 'hugo-browse)
+    (define-key map (kbd "C-c h p") 'hugo-insert-post-url)
+    (define-key map (kbd "C-c h m") 'hugo-insert-image-url)
+    (define-key map (kbd "C-c h b") 'hugo-browse)
     map)
   "A minor mode for interacting with Hugo.")
 
@@ -113,7 +108,10 @@
           (group (*? nonl) ".pdc" eol)
           (group (*? nonl) ".html" eol)
           (group (*? nonl) ".htm" eol)))
-  "A regular expression matching any Hugo content format.")
+  "A regular expression matching any Hugo content format filename.")
+
+(defvar hugo-last-image-path ""
+  "The fully-qualified path of the last image inserted.")
 
 (defvar hugo-server-address
   "http://localhost:1313"
@@ -125,7 +123,7 @@
 Enable this mode when you are editing blog files and wish to use these
 Hugo-specific convenience functions. For example, you may want to
 enable this mode in `markdown-mode'."
-  nil "Oct"
+  nil " Hugo"
   hugo-minor-mode-map)
 
 ;;; Customization
@@ -141,6 +139,19 @@ enable this mode in `markdown-mode'."
 The Hugo package will assume that the final segment of this path is
 your post `type' and provide that to the `hugo new' command, unless
 you have configured `hugo-post-type'."
+  :type 'string
+  :group 'hugo)
+
+(defcustom hugo-static-image-path
+  "static"
+  "The relative path to your static image location.
+
+This path is relative to the site root and should correspond to the
+value of, or value of one entry in, the Hugo `staticDir' configuration
+variable.
+
+If you haven't configured `staticDir', you shouldn't need to touch
+this, either."
   :type 'string
   :group 'hugo)
 
@@ -208,10 +219,155 @@ and the location of any currently open buffer will be ignored."
         (progn (hugo--draw-status hugo-buffer)
                (pop-to-buffer hugo-buffer)))))
 
+(defun hugo-refresh-status ()
+  "Refresh the status display."
+  (interactive)
+  (hugo-toggle-command-window t)
+  (hugo--maybe-redraw-status))
+
 (defun hugo-create-thing ()
   "Present a menu through which the user may create a new thing."
   (interactive)
   (hugo--new-post))
+
+(defun hugo-status-quit ()
+  "Quit the Hugo status window, preserving its buffer."
+  (interactive)
+  (hugo-toggle-command-window t)
+  (quit-window t))
+
+(defun hugo-server-quit ()
+  "Quit the Hugo Server window, preserving its buffer."
+  (interactive)
+  (quit-window))
+
+(defun hugo-process-quit ()
+  "Quit the Hugo Process window, preserving its buffer."
+  (interactive)
+  (quit-window))
+
+(defun hugo-move-to-next-thing ()
+  "Move point to the next item with property 'thing."
+  (interactive)
+  (hugo--move-to-next-visible-thing))
+
+(defun hugo-move-to-next-heading ()
+  "Move point to the next item with property 'heading."
+  (interactive)
+  (hugo--move-to-next-prop 'heading))
+
+(defun hugo-move-to-previous-thing ()
+  "Move to the previous item with property 'thing."
+  (interactive)
+  (hugo--move-to-next-visible-thing t))
+
+(defun hugo-move-to-previous-heading ()
+  "Move to the previous item with property 'heading."
+  (interactive)
+  (hugo--move-to-previous-prop 'heading))
+
+(defun hugo-open-at-point ()
+  "Open the file at point, if there is one."
+  (interactive)
+  (let* ((type (hugo--get-line-type))
+         (filename (hugo--get-line-filename))
+         (full-filename (hugo--expand-path-for-type filename type)))
+    (if (and type
+             (file-exists-p full-filename))
+        (pop-to-buffer (find-file full-filename)))))
+
+(defun hugo-maybe-toggle-visibility ()
+  "If point is on something that can be shown or hidden, do so."
+  (interactive)
+  (let ((hidden (get-text-property (line-beginning-position) 'hidden)))
+    (if hidden
+        (if (memq hidden buffer-invisibility-spec)
+            (remove-from-invisibility-spec hidden)
+          (add-to-invisibility-spec hidden))))
+  (force-window-update (current-buffer)))
+
+(defun hugo-insert-image-url ()
+  "Read the file name of an image and insert its relative path."
+  (interactive)
+  (let* ((root (hugo--get-root))
+         (static-root (concat (file-name-as-directory root)
+                              (file-name-as-directory hugo-static-image-path)))
+         (browse-root (concat (file-name-as-directory root)
+                              (if (string= hugo-last-image-path "")
+                                  (file-name-as-directory hugo-static-image-path)
+                                (file-name-directory hugo-last-image-path))))
+         (fname (read-file-name "Insert path to: " browse-root)))
+    (if fname
+        (progn
+          (setq hugo-last-image-path fname)
+          (insert (concat "/" (file-relative-name fname static-root))))
+      (message "No file selected!"))))
+
+(defun hugo-toggle-command-window (&optional hide)
+  "Toggle the display of a helpful command window.
+
+If the optional HIDE argument is not nil, hide the command window if
+it exists and do nothing otherwise."
+  (interactive)
+  (let* ((buffer-name (hugo--buffer-name-for-type "command"))
+         (command-buffer (get-buffer-create buffer-name))
+         (command-window (get-buffer-window command-buffer)))
+    (if command-window
+        (delete-window command-window)
+      (if (not hide)
+          (progn
+            (hugo--draw-command-help command-buffer)
+            (split-window-below)
+            (set-window-buffer (next-window) command-buffer)
+            (fit-window-to-buffer (next-window)))))))
+
+(defun hugo-start-stop-server ()
+  "Start or stop the server based on user input."
+  (interactive)
+  (let* ((config (hugo--read-char-with-toggles
+                  "[s] Server, [k] Kill, [q] Abort"
+                  '(?s ?k ?q)
+                  hugo-default-server-flags))
+         (choice (cdr (assoc 'choice config)))
+         (drafts (cdr (assoc 'drafts config)))
+         (future (cdr (assoc 'future config)))
+         (expired (cdr (assoc 'expired config))))
+    (if choice
+        (cond ((eq choice ?s)
+               (hugo-toggle-command-window t)
+               (hugo--start-server-process drafts future expired))
+              ((eq choice ?k)
+               (progn (hugo-toggle-command-window t)
+                      (message "Stopping server...")
+                      (hugo--stop-server-process)))))))
+
+(defun hugo-build ()
+  "Initiate a Hugo build upon interactive confirmation."
+  (interactive)
+  (let* ((config (hugo--read-char-with-toggles
+                  "[b] Build, [q] Abort"
+                  '(?b ?q)
+                  hugo-default-build-flags))
+         (choice (cdr (assoc 'choice config)))
+         (drafts (cdr (assoc 'drafts config)))
+         (future (cdr (assoc 'future config)))
+         (expired (cdr (assoc 'expired config))))
+    (when (eq choice ?b)
+      (progn
+        (hugo-toggle-command-window t)
+        (hugo--start-build-process drafts future expired)))))
+
+(defun hugo-show-server ()
+  "Pop to the server output buffer."
+  (interactive)
+  (hugo-toggle-command-window t)
+  (pop-to-buffer (hugo--prepare-server-buffer)))
+
+(defun hugo-show-process ()
+  "Pop to the process output buffer."
+  (interactive)
+  (hugo-toggle-command-window t)
+  (pop-to-buffer (hugo--prepare-process-buffer)))
 
 ;;; "Private" functions
 (defun hugo--setup ()
@@ -334,12 +490,6 @@ STATUS is an alist of status names and their printable values."
         (if window
             (force-window-update window))))))
 
-(defun hugo-refresh-status ()
-  "Refresh the status display."
-  (interactive)
-  (hugo-toggle-command-window t)
-  (hugo--maybe-redraw-status))
-
 (defun hugo--draw-command-help (buffer)
   "Output the help menu into BUFFER.
 
@@ -358,11 +508,8 @@ Note that BUFFER's contents will be destroyed."
        (hugo--legend-item "c" "Create" 18)
        (hugo--legend-item "s" "Server" 18)
        (hugo--legend-item "b" "Build" 18)
-       (hugo--legend-item "P" "[Un]publish" 18) "\n"
-       (hugo--legend-item "d" "Deploy" 18)
-       (hugo--legend-item "g" "Refresh" 18)
-       (hugo--legend-item "i" "Isolate" 18)
-       (hugo--legend-item "i" "Integrate" 18) "\n"
+       ;;(hugo--legend-item "d" "Deploy" 18) ;; unsupported
+       (hugo--legend-item "g" "Refresh" 18) "\n"
        (hugo--legend-item "!" "Show Process" 18)
        (hugo--legend-item "$" "Show Server" 18)
        (hugo--legend-item "q" "Quit" 18))
@@ -427,11 +574,19 @@ items in this list, allowing them to be shown or hidden as a group."
 (defun hugo--get-post-items ()
   "Get all post/draft items as lists of bare filenames."
   (let* ((content-list (hugo--get-content-items))
-         (valid-posts-list (seq-filter (lambda (item) (and (equal (file-name-as-directory hugo-posts-directory)
-                                                                  (file-name-directory (nth 0 item)))))
-                                       content-list)))
-    (list (list 'drafts (mapcar (lambda (item) (file-name-nondirectory (car item))) (seq-filter (lambda (item) (equal (nth 6 item) "true")) valid-posts-list)))
-          (list 'posts (mapcar (lambda (item) (file-name-nondirectory (car item))) (seq-filter (lambda (item) (equal (nth 6 item) "false")) valid-posts-list))))))
+         (valid-posts-list (seq-filter
+                            (lambda (item) (and (equal (file-name-as-directory hugo-posts-directory)
+                                                       (file-name-directory (nth 0 item)))))
+                            content-list)))
+    (list (list 'drafts (mapcar
+                         (lambda (item) (file-name-nondirectory (car item)))
+                         (seq-filter
+                          (lambda (item) (equal (nth 6 item) "true"))
+                          valid-posts-list)))
+          (list 'posts (mapcar
+                        (lambda (item) (file-name-nondirectory (car item)))
+                        (seq-filter (lambda (item) (equal (nth 6 item) "false"))
+                                    valid-posts-list))))))
 
 (defun hugo--get-posts (content-list)
   "Get a list of posts files from the CONTENT-LIST assoc."
@@ -491,50 +646,6 @@ The following keys are available in `hugo-process-mode':
 
   \\{hugo-server-mode-map}"
   (setq truncate-lines t))
-
-(defun hugo-status-quit ()
-  "Quit the Hugo status window, preserving its buffer."
-  (interactive)
-  (hugo-toggle-command-window t)
-  (quit-window t))
-
-(defun hugo-server-quit ()
-  "Quit the Hugo Server window, preserving its buffer."
-  (interactive)
-  (quit-window))
-
-(defun hugo-process-quit ()
-  "Quit the Hugo Process window, preserving its buffer."
-  (interactive)
-  (quit-window))
-
-(defun hugo--maybe-toggle-visibility ()
-  "If point is on something that can be shown or hidden, do so."
-  (interactive)
-  (let ((hidden (get-text-property (line-beginning-position) 'hidden)))
-    (if hidden
-        (if (memq hidden buffer-invisibility-spec)
-            (remove-from-invisibility-spec hidden)
-          (add-to-invisibility-spec hidden))))
-  (force-window-update (current-buffer)))
-
-(defun hugo-toggle-command-window (&optional hide)
-  "Toggle the display of a helpful command window.
-
-If the optional HIDE argument is not nil, hide the command window if
-it exists and do nothing otherwise."
-  (interactive)
-  (let* ((buffer-name (hugo--buffer-name-for-type "command"))
-         (command-buffer (get-buffer-create buffer-name))
-         (command-window (get-buffer-window command-buffer)))
-    (if command-window
-        (delete-window command-window)
-      (if (not hide)
-          (progn
-            (hugo--draw-command-help command-buffer)
-            (split-window-below)
-            (set-window-buffer (next-window) command-buffer)
-            (fit-window-to-buffer (next-window)))))))
 
 (defun hugo--read-char-with-toggles (prompt-suffix choices &optional default-to-on)
   "Toggle options on and off interactively.
@@ -718,16 +829,6 @@ If the buffer doesn't exist yet, it will be created and prepared."
     (if (bufferp status-buffer)
         (hugo--draw-status status-buffer))))
 
-(defun hugo--move-to-next-thing ()
-  "Move point to the next item with property 'thing."
-  (interactive)
-  (hugo--move-to-next-visible-thing))
-
-(defun hugo--move-to-next-heading ()
-  "Move point to the next item with property 'heading."
-  (interactive)
-  (hugo--move-to-next-prop 'heading))
-
 (defun hugo--move-to-next-visible-thing (&optional reverse)
   "Move point to the next item with property 'thing that is visible.
 
@@ -751,6 +852,19 @@ If REVERSE is not nil, move to the previous visible 'thing."
                  (point)))
   (beginning-of-line))
 
+(defun hugo--thing-on-this-line-p ()
+  "Determine whether there is a thing on this line."
+  (get-text-property (line-beginning-position) 'thing))
+
+(defun hugo--highlight-current-line ()
+  "Create a highlight effect on the current line using overlays."
+  (if (hugo--thing-on-this-line-p)
+      (let ((end (save-excursion
+                   (forward-line 1)
+                   (point))))
+        (move-overlay hugo-highlight-current-line-overlay (line-beginning-position) end))
+    (delete-overlay hugo-highlight-current-line-overlay)))
+
 (defun hugo--move-to-next-prop (prop-name)
   "Move to the next item with property PROP-NAME."
   (goto-char
@@ -763,16 +877,6 @@ If REVERSE is not nil, move to the previous visible 'thing."
                      (remove-from-invisibility-spec type))
                  thing))))
        (point))))
-
-(defun hugo--move-to-previous-thing ()
-  "Move to the previous item with property 'thing."
-  (interactive)
-  (hugo--move-to-next-visible-thing t))
-
-(defun hugo--move-to-previous-heading ()
-  "Move to the previous item with property 'heading."
-  (interactive)
-  (hugo--move-to-previous-prop 'heading))
 
 (defun hugo--move-to-previous-prop (prop-name)
   "Move to the previous item with property PROP-NAME."
@@ -788,29 +892,6 @@ If REVERSE is not nil, move to the previous visible 'thing."
                    nil)))))
        (point)))
   (goto-char (line-beginning-position)))
-
-(defun hugo--thing-on-this-line-p ()
-  "Determine whether there is a thing on this line."
-  (get-text-property (line-beginning-position) 'thing))
-
-(defun hugo--highlight-current-line ()
-  "Create a highlight effect on the current line using overlays."
-  (if (hugo--thing-on-this-line-p)
-      (let ((end (save-excursion
-                   (forward-line 1)
-                   (point))))
-        (move-overlay hugo-highlight-current-line-overlay (line-beginning-position) end))
-    (delete-overlay hugo-highlight-current-line-overlay)))
-
-(defun hugo--open-at-point ()
-  "Open the file at point, if there is one."
-  (interactive)
-  (let* ((type (hugo--get-line-type))
-         (filename (hugo--get-line-filename))
-         (full-filename (hugo--expand-path-for-type filename type)))
-    (if (and type
-             (file-exists-p full-filename))
-        (pop-to-buffer (find-file full-filename)))))
 
 (defun hugo--get-line-type ()
   "Get the 'line type' property of the current line.
@@ -839,54 +920,6 @@ defined in the configuration."
          (expand-file-name
           filename (expand-file-name
                     type-dir (hugo--get-root))))))
-
-(defun hugo-start-stop-server ()
-  "Start or stop the server based on user input."
-  (interactive)
-  (let* ((config (hugo--read-char-with-toggles
-                  "[s] Server, [k] Kill, [q] Abort"
-                  '(?s ?k ?q)
-                  hugo-default-server-flags))
-         (choice (cdr (assoc 'choice config)))
-         (drafts (cdr (assoc 'drafts config)))
-         (future (cdr (assoc 'future config)))
-         (expired (cdr (assoc 'expired config))))
-    (if choice
-        (cond ((eq choice ?s)
-               (hugo-toggle-command-window t)
-               (hugo--start-server-process drafts future expired))
-              ((eq choice ?k)
-               (progn (hugo-toggle-command-window t)
-                      (message "Stopping server...")
-                      (hugo--stop-server-process)))))))
-
-(defun hugo-build ()
-  "Initiate a Hugo build upon interactive confirmation."
-  (interactive)
-  (let* ((config (hugo--read-char-with-toggles
-                  "[b] Build, [q] Abort"
-                  '(?b ?q)
-                  hugo-default-build-flags))
-         (choice (cdr (assoc 'choice config)))
-         (drafts (cdr (assoc 'drafts config)))
-         (future (cdr (assoc 'future config)))
-         (expired (cdr (assoc 'expired config))))
-    (when (eq choice ?b)
-      (progn
-        (hugo-toggle-command-window t)
-        (hugo--start-build-process drafts future expired)))))
-
-(defun hugo-show-server ()
-  "Pop to the server output buffer."
-  (interactive)
-  (hugo-toggle-command-window t)
-  (pop-to-buffer (hugo--prepare-server-buffer)))
-
-(defun hugo-show-process ()
-  "Pop to the process output buffer."
-  (interactive)
-  (hugo-toggle-command-window t)
-  (pop-to-buffer (hugo--prepare-process-buffer)))
 
 (defun hugo--start-server-process (&optional with-drafts with-future with-expired)
   "Run the server start command.
