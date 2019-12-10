@@ -655,7 +655,7 @@ See `set-process-sentinel' for PROCESS and EVENT details."
         (save-excursion
           ;; Insert the text, advancing the process marker.
           (goto-char (process-mark proc))
-          (insert (replace-regexp-in-string "" "" string))
+          (insert (replace-regexp-in-string "" "" string))
           (set-marker (process-mark proc) (point))
           (hugo--find-server-address))
         (when moving
