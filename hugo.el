@@ -86,8 +86,9 @@
 
 (defvar hugo-minor-mode-map
   (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c h s") 'hugo-status)
     (define-key map (kbd "C-c h p") 'hugo-insert-post-url)
-    (define-key map (kbd "C-c h m") 'hugo-insert-image-url)
+    (define-key map (kbd "C-c h i") 'hugo-insert-image-url)
     (define-key map (kbd "C-c h b") 'hugo-browse)
     map)
   "A minor mode for interacting with Hugo.")
@@ -303,6 +304,17 @@ and the location of any currently open buffer will be ignored."
           (insert (concat "/" (file-relative-name fname static-root))))
       (message "No file selected!"))))
 
+(defun hugo-insert-post-url ()
+  "Read the filename of a post and insert a ref shortcode for it."
+  (interactive)
+  (let* ((root (hugo--get-root))
+         (browse-root (concat (file-name-as-directory root)
+                              (file-name-as-directory hugo-posts-directory)))
+         (fname (read-file-name "Insert permalink to: " browse-root)))
+    (if fname
+        (insert (concat "{{< ref \"" (file-name-base fname) "\" >}}"))
+      (message "No file selected!"))))
+
 (defun hugo-toggle-command-window (&optional hide)
   "Toggle the display of a helpful command window.
 
@@ -340,6 +352,15 @@ it exists and do nothing otherwise."
                (progn (hugo-toggle-command-window t)
                       (message "Stopping server...")
                       (hugo--stop-server-process)))))))
+
+(defun hugo-browse ()
+  "Open the current Hugo blog in a browser."
+  (interactive)
+  (if (not (hugo--server-status))
+      (message "The Hugo server is not running.")
+    (if (not hugo-server-address)
+        (message "Could not find the server's address; try restarting the server.")
+      (browse-url hugo-server-address))))
 
 (defun hugo-build ()
   "Initiate a Hugo build upon interactive confirmation."
