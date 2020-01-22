@@ -67,8 +67,8 @@
     (define-key map "p" 'hugo-move-to-previous-thing)
     (define-key map (kbd "C-n") 'hugo-move-to-next-heading)
     (define-key map (kbd "C-p") 'hugo-move-to-previous-heading)
-    (define-key map (kbd "<tab>") 'hugo-maybe-toggle-visibility)
-    (define-key map (kbd "<return>") 'hugo-open-at-point)
+    (define-key map (kbd "TAB") 'hugo-maybe-toggle-visibility)
+    (define-key map (kbd "RET") 'hugo-open-at-point)
     map)
   "Get the keymap for the Hugo status buffer.")
 
