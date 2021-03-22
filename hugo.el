@@ -293,10 +293,10 @@ and the location of any currently open buffer will be ignored."
   (let* ((root (hugo--get-root))
          (static-root (concat (file-name-as-directory root)
                               (file-name-as-directory hugo-static-image-path)))
-         (browse-root (concat (file-name-as-directory root)
-                              (if (string= hugo-last-image-path "")
-                                  (file-name-as-directory hugo-static-image-path)
-                                (file-name-directory hugo-last-image-path))))
+         (browse-root (if (string= hugo-last-image-path "")
+                          (concat (file-name-as-directory root)
+                                  (file-name-as-directory hugo-static-image-path))
+                        (file-name-directory hugo-last-image-path)))
          (fname (read-file-name "Insert path to: " browse-root)))
     (if fname
         (progn
