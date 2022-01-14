@@ -577,13 +577,15 @@ items in this list, allowing them to be shown or hidden as a group."
   "Get all content items as structured data."
   (hugo--setup)
   (let* ((default-directory (hugo--get-root))
-         (source (split-string
-                  (with-temp-buffer
-                    (let ((ret (call-process-shell-command (concat hugo-bin " list all") nil t)))
-                      (unless (zerop ret)
-                        (error (concat "'" hugo-bin " list all' exited abnormally: " (buffer-string))))
-                      (buffer-string)))
-                  "\n"))
+         (source
+          (delete ""
+                  (split-string
+                   (with-temp-buffer
+                     (let ((ret (call-process-shell-command (concat hugo-bin " list all") nil t)))
+                       (unless (zerop ret)
+                         (error (concat "'" hugo-bin " list all' exited abnormally: " (buffer-string))))
+                       (buffer-string)))
+                   "\n")))
          (items
           (mapcar (lambda (line) (cons
                                   (concat (file-name-directory (car line))
