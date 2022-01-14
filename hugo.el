@@ -442,7 +442,7 @@ the path to an Hugo site."
                    (if candidate-dir (expand-file-name candidate-dir) nil)))
             (and (not (string= "" hugo-blog-root)) hugo-blog-root)
             (let ((candidate-dir (read-directory-name "Hugo site root: ")))
-              (if (file-exists-p (expand-file-name "config.toml" candidate-dir))
+              (if (hugo--get-config candidate-dir)
                   (expand-file-name candidate-dir)
                 (prog2 (message "Could not find config.toml in `%s'." candidate-dir)
                     nil)))))))
