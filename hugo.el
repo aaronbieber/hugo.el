@@ -869,7 +869,7 @@ by `hugo--handle-hugo-output'.
 If the string PREFIX is given, the filename is assumed to begin with
 it.  For example, call with '_posts' or '_drafts' to find the
 corresponding paths in the output line."
-  (string-match (rx bol (group (*? (not (syntax whitespace)))) " created") output)
+  (string-match (rx "\"" (group (*? (not (syntax whitespace)))) "\" created") output)
   (match-string 1 output))
 
 (defun hugo--prepare-server-buffer ()
