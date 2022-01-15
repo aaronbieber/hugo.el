@@ -60,7 +60,6 @@
     (define-key map "s" 'hugo-start-stop-server)
     (define-key map "g" 'hugo-refresh-status)
     (define-key map "c" 'hugo-create-thing)
-    ;;(define-key map "d" 'hugo-deploy) ;; unsupported
     (define-key map "b" 'hugo-build)
     (define-key map "$" 'hugo-show-server)
     (define-key map "!" 'hugo-show-process)
