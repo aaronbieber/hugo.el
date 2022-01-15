@@ -667,7 +667,7 @@ otherwise."
          (string= (process-status server-process) "run"))))
 
 (define-derived-mode hugo-mode nil "Hugo"
-  "The major mode for interacting with a Jekyll site.
+  "The major mode for interacting with a Hugo site.
 
 The following keys are available in `hugo-mode':
 
