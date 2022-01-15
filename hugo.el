@@ -476,7 +476,9 @@ If the buffer doesn't exist yet, it will be created and prepared."
   "Draw a display of STATUS in BUFFER.
 
 STATUS is an alist of status names and their printable values."
-  (let ((status (hugo--get-status-data buffer)))
+  (let* ((status (hugo--get-status-data buffer))
+         (all-items (cdr (assoc 'content-items status)))
+         (types (delete-dups (mapcar (lambda (e) (car e)) all-items))))
     (with-current-buffer buffer
       (let ((inhibit-read-only t)
             (window (get-buffer-window))
@@ -493,16 +495,21 @@ STATUS is an alist of status names and their printable values."
          (propertize "      Server: " 'face 'font-lock-function-name-face)
          (cdr (assoc 'server-status status)) "\n"
 
-         (propertize " " 'thing t 'hidden 'drafts 'heading t)
-         (propertize "      Drafts: " 'face 'font-lock-function-name-face)
-         (number-to-string (cdr (assoc 'drafts-count status))) "\n"
-         (hugo--get-display-list (cdr (assoc 'drafts-list status)) 'drafts)
-
-         (propertize " " 'thing t 'hidden 'posts 'heading t)
-         (propertize "       Posts: " 'face 'font-lock-function-name-face)
-         (number-to-string (cdr (assoc 'posts-count status))) "\n"
-         (hugo--get-display-list (cdr (assoc 'posts-list status)) 'posts)
-
+         (loop for type in types concat
+               (let ((drafts (mapcar (lambda (e) (file-name-nondirectory (car e)))
+                                     (seq-filter (lambda (e) (equal (nth 6 e) "true"))
+                                                 (cdr (assoc type all-items)))))
+                     (items (mapcar (lambda (e) (file-name-nondirectory (car e)))
+                                    (seq-filter (lambda (e) (equal (nth 6 e) "false"))
+                                                (cdr (assoc type all-items))))))
+                 (concat
+                  (propertize " " 'thing t 'hidden (intern type) 'heading t)
+                  (propertize (concat
+                               "      " (sentence-case type) ": \n")
+                              'face 'font-lock-function-name-face)
+                  (hugo--get-display-list drafts (intern type))
+                  (debug)
+                  (hugo--get-display-list items (intern type)))))
          "\n"
          "Press `?' for help.")
         (goto-char (if (< pos (point-max))
@@ -551,11 +558,13 @@ This function can only be called after `hugo-status' has been run
 and must be passed the resulting BUFFER."
   (hugo--setup)
   (let* ((post-items (hugo--get-post-items))
-         (posts-list (hugo--get-posts post-items))
-         (drafts-list (hugo--get-drafts post-items)))
+         (content-items (hugo--get-content-items))
+         (posts-list (hugo--get-posts post-items)) ;; TODO remove
+         (drafts-list (hugo--get-drafts post-items))) ;; TODO remove
     (with-current-buffer buffer
       `((posts-count . ,(length posts-list))
         (posts-list . ,posts-list)
+        (content-items . ,content-items)
         (drafts-count . ,(length drafts-list))
         (drafts-list . ,drafts-list)
         (server-status . ,(hugo--server-status-string))))))
@@ -573,7 +582,7 @@ items in this list, allowing them to be shown or hidden as a group."
                            (make-string 10 ? ) thing "\n")))
     (propertize thing-list 'invisible visibility-name)))
 
-(defun hugo--get-content-items ()
+(defun hugo--list-all ()
   "Get all content items as structured data."
   (hugo--setup)
   (let* ((default-directory (hugo--get-root))
@@ -593,6 +602,31 @@ items in this list, allowing them to be shown or hidden as a group."
                                   (cdr line)))
                   (cdr (mapcar (lambda (line) (split-string line ",")) source)))))
     items))
+
+(defun sentence-case (s)
+  "Convert the first word's first character to upper case and the rest to lower case in S."
+  (concat (upcase (substring s 0 1)) (downcase (substring s 1))))
+
+(defun hugo--get-content-items ()
+  "Get all content items in an alist by type.
+
+Types are simply the top-level directories within `content' as defined
+by the Hugo docs."
+  ;; Get all items into alist by type
+  (let* ((all-items (hugo--list-all))
+         (types (delete-dups (mapcar
+                              (lambda (i) (list
+                                           (nth 1 (split-string (car i) "/"))))
+                              all-items)))
+         (content-items (reduce (lambda (seq item)
+                                  (let ((type
+                                         (nth 1 (split-string (car item) "/"))))
+                                    ;; (setf (cdr (assoc type seq)) (cons item (cdr (assoc type seq))))
+                                    (push item (cdr (assoc type seq)))
+                                    seq))
+                                all-items
+                                :initial-value types)))
+    content-items))
 
 (defun hugo--get-post-items ()
   "Get all post/draft items as lists of bare filenames."
@@ -945,17 +979,19 @@ text property at position zero."
     (thing-at-point 'filename)))
 
 (defun hugo--expand-path-for-type (filename type)
-  "Given a FILENAME and line TYPE, expand the file's path.
+  "Given a FILENAME and symbol TYPE, expand the file's path.
 
 This function assumes that the base paths for every TYPE have been
 defined in the configuration."
-  (let ((type-dir (cdr (assoc type `((posts . ,hugo-posts-directory)
-                                     (drafts . ,hugo-posts-directory))))))
+  (let ((type-dir
+         (concat
+          (file-name-as-directory "content") (symbol-name type))))
     (and filename
          type-dir
          (expand-file-name
-          filename (expand-file-name
-                    type-dir (hugo--get-root))))))
+          (concat
+           (file-name-as-directory type-dir) filename)
+          (hugo--get-root)))))
 
 (defun hugo--start-server-process (&optional with-drafts with-future with-expired)
   "Run the server start command.
