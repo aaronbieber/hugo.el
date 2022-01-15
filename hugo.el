@@ -152,19 +152,8 @@ This path is relative to the site root and should correspond to the
 value of, or value of one entry in, the Hugo `staticDir' configuration
 variable.
 
-If you haven't configured `staticDir', you shouldn't need to touch
-this, either."
-  :type 'string
-  :group 'hugo)
-
-(defcustom hugo-post-type
-  nil
-  "The default `type' for a post.
-
-This value is used to tell Hugo which archetype to use when creating a
-new post (if it exists).  If nil, the type will be discerned from the
-last path segment of `hugo-posts-directory' in keeping with the
-standard behavior."
+If you haven't configured `staticDir', you shouldn't need to change
+this."
   :type 'string
   :group 'hugo)
 
@@ -644,23 +633,6 @@ by the Hugo docs."
     (loop for type in content-items collect
           (cons (car type) (nreverse (cdr type))))))
 
-(defun hugo--get-post-items ()
-  "Get all post/draft items as lists of bare filenames."
-  (let* ((content-list (hugo--get-content-items))
-         (valid-posts-list (seq-filter
-                            (lambda (item) (and (equal (file-name-as-directory hugo-posts-directory)
-                                                       (file-name-directory (nth 0 item)))))
-                            content-list)))
-    (list (list 'drafts (mapcar
-                         (lambda (item) (file-name-nondirectory (car item)))
-                         (seq-filter
-                          (lambda (item) (equal (nth 6 item) "true"))
-                          valid-posts-list)))
-          (list 'posts (mapcar
-                        (lambda (item) (file-name-nondirectory (car item)))
-                        (seq-filter (lambda (item) (equal (nth 6 item) "false"))
-                                    valid-posts-list))))))
-
 (defun hugo--get-posts (content-list)
   "Get a list of posts files from the CONTENT-LIST assoc."
   (cadr (assoc 'posts content-list)))
@@ -768,16 +740,9 @@ This function returns the char value from CHOICES selected by the user."
   (hugo-toggle-command-window t)
   (let ((name (read-string "Content name: ")))
     (hugo--run-hugo-command
-     (concat "new -k " (hugo--get-post-type) " "
-             (concat (file-name-as-directory "content")
-                     (file-name-as-directory kind)
-                     (hugo--create-content-filename name))))))
-
-(defun hugo--get-post-type ()
-  "Get the default type for a post."
-  (or hugo-post-type
-      (progn (string-match (rx (group (* (not (any "\\/")))) eol) hugo-posts-directory)
-             (match-string 1 hugo-posts-directory))))
+     (concat "new " (concat (file-name-as-directory "content")
+                            (file-name-as-directory kind)
+                            (hugo--create-content-filename name))))))
 
 (defun hugo--create-content-filename (name)
   "Create a Hugo content filename from a human-readable NAME.
