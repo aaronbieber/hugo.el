@@ -456,8 +456,7 @@ If the buffer doesn't exist yet, it will be created and prepared."
     (or (get-buffer buffer-name)
         (let ((status-buffer (hugo--prepare-buffer-for-type "status" 'hugo-mode)))
           (with-current-buffer status-buffer
-            (add-to-invisibility-spec 'posts)
-            (add-to-invisibility-spec 'exiled))
+            (add-to-invisibility-spec 'posts))
           status-buffer))))
 
 (defun hugo--prepare-buffer-for-type (type &optional mode-function)
