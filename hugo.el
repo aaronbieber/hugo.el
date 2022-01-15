@@ -224,6 +224,7 @@ and the location of any currently open buffer will be ignored."
   "Refresh the status display."
   (interactive)
   (hugo-toggle-command-window t)
+  (hugo--get-status-data (current-buffer) t)
   (hugo--maybe-redraw-status))
 
 (defun hugo-create-thing ()
@@ -235,7 +236,7 @@ and the location of any currently open buffer will be ignored."
   "Quit the Hugo status window, preserving its buffer."
   (interactive)
   (hugo-toggle-command-window t)
-  (quit-window t))
+  (quit-window))
 
 (defun hugo-server-quit ()
   "Quit the Hugo Server window, preserving its buffer."
@@ -397,8 +398,8 @@ it exists and do nothing otherwise."
   (let ((hugo-buffer (get-buffer (hugo--buffer-name-for-type "status"))))
     (if (hugo--buffer-is-configured hugo-buffer)
         hugo-buffer
-      (setq hugo-root (hugo--get-root))
-      (let* ((hugo-buffer (hugo--prepare-status-buffer)))
+      (let* ((hugo-buffer (hugo--prepare-status-buffer))
+             (hugo-root (hugo--get-root)))
         (if (and hugo-buffer hugo-root)
             (progn (with-current-buffer hugo-buffer
                      (make-local-variable 'hugo-root))
@@ -536,11 +537,10 @@ Note that BUFFER's contents will be destroyed."
        (hugo--legend-item "c" "Create" 18)
        (hugo--legend-item "s" "Server" 18)
        (hugo--legend-item "b" "Build" 18)
-       ;;(hugo--legend-item "d" "Deploy" 18) ;; unsupported
        (hugo--legend-item "g" "Refresh" 18) "\n"
        (hugo--legend-item "!" "Show Process" 18)
        (hugo--legend-item "$" "Show Server" 18)
-       (hugo--legend-item "q" "Quit" 18))
+       (hugo--legend-item "q" "Close status" 18))
       (goto-char (point-min)))))
 
 (defun hugo--legend-item (key label column-width)
@@ -551,35 +551,46 @@ Note that BUFFER's contents will be destroyed."
      label
      (make-string pad ? ))))
 
-(defun hugo--get-status-data (buffer)
-  "Return statistics about the Hugo site linked to BUFFER.
+(defun hugo--get-status-data (buffer &optional force)
+  "Return data about the Hugo site linked to BUFFER.
+
+Return the data saved in buffer-local variables, unless they are not
+set or FORCE is not nil.
 
 This function can only be called after `hugo-status' has been run
 and must be passed the resulting BUFFER."
   (hugo--setup)
-  (let* ((post-items (hugo--get-post-items))
-         (content-items (hugo--get-content-items))
-         (posts-list (hugo--get-posts post-items)) ;; TODO remove
-         (drafts-list (hugo--get-drafts post-items))) ;; TODO remove
-    (with-current-buffer buffer
-      `((posts-count . ,(length posts-list))
-        (posts-list . ,posts-list)
-        (content-items . ,content-items)
-        (drafts-count . ,(length drafts-list))
-        (drafts-list . ,drafts-list)
+  (with-current-buffer buffer
+    (let* ((vars (buffer-local-variables buffer))
+           (items (if (and (not force)
+                           (assoc 'content-items vars))
+                      (cdr (assoc 'content-items vars))
+                    (setq-local content-items (hugo--get-content-items)))))
+      `((content-items . ,items)
         (server-status . ,(hugo--server-status-string))))))
 
-(defun hugo--get-display-list (things visibility-name)
+(defun hugo--get-content-types ()
+  "Get a list of possible content types.
+
+Relies on the existence of the status buffer and its associated data."
+  (hugo--setup)
+  (let ((status-buffer (get-buffer (hugo--buffer-name-for-type "status"))))
+    (mapcar (lambda (e) (car e)) content-items)))
+
+(defun hugo--get-display-list (things visibility-name &optional face-prop)
   "A helper to create a text column of THINGS.
 
 VISIBILITY-NAME will be applied to the `invisible' property of all
-items in this list, allowing them to be shown or hidden as a group."
+items in this list, allowing them to be shown or hidden as a group.
+If provided, the `face' property will be set to the value of
+FACE-PROP."
   (let ((thing-list ""))
-    (cl-loop for thing in things do
-             (setq thing-list
-                   (concat thing-list
-                           (propertize " " 'thing t)
-                           (make-string 10 ? ) thing "\n")))
+    (loop for thing in things do
+          (setq thing-list
+                (concat thing-list
+                        (propertize " " 'thing t)
+                        (make-string 10 ? )
+                        (propertize thing 'face face-prop) "\n")))
     (propertize thing-list 'invisible visibility-name)))
 
 (defun hugo--list-all ()
