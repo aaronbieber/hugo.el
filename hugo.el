@@ -310,9 +310,7 @@ and the location of any currently open buffer will be ignored."
 (defun hugo-insert-post-url ()
   "Read the filename of a post and insert a ref shortcode for it."
   (interactive)
-  (let* ((root (hugo--get-root))
-         (browse-root (concat (file-name-as-directory root)
-                              (file-name-as-directory hugo-posts-directory)))
+  (let* ((browse-root (file-name-directory (buffer-file-name)))
          (fname (read-file-name "Insert permalink to: " browse-root)))
     (if fname
         (insert (concat "{{< ref \"" (file-name-base fname) "\" >}}"))
