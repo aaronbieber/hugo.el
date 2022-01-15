@@ -231,7 +231,10 @@ and the location of any currently open buffer will be ignored."
 (defun hugo-create-thing ()
   "Present a menu through which the user may create a new thing."
   (interactive)
-  (let ((kind (completing-read "Create a new: " (hugo--get-content-types))))
+  (let* ((types (hugo--get-content-types))
+         (kind (if (= 1 (length types))
+                   (car types)
+                (completing-read "Create a new: " types))))
     (hugo--new-content kind)
     (hugo--get-status-data (current-buffer) t)
     (hugo--maybe-redraw-status)))
