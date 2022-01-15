@@ -230,7 +230,10 @@ and the location of any currently open buffer will be ignored."
 (defun hugo-create-thing ()
   "Present a menu through which the user may create a new thing."
   (interactive)
-  (hugo--new-post))
+  (let ((kind (completing-read "Create a new: " (hugo--get-content-types))))
+    (hugo--new-content kind)
+    (hugo--get-status-data (current-buffer) t)
+    (hugo--maybe-redraw-status)))
 
 (defun hugo-status-quit ()
   "Quit the Hugo status window, preserving its buffer."
@@ -745,14 +748,16 @@ This function returns the char value from CHOICES selected by the user."
                        done t)))))
   return))
 
-(defun hugo--new-post ()
-  "Call the new post command."
+(defun hugo--new-content (kind)
+  "Call the new command for KIND."
+  (hugo--setup)
   (hugo-toggle-command-window t)
-  (let ((name (read-string "Post name: ")))
+  (let ((name (read-string "Content name: ")))
     (hugo--run-hugo-command
      (concat "new -k " (hugo--get-post-type) " "
-             (file-name-as-directory hugo-posts-directory)
-             (hugo--create-content-filename name)))))
+             (concat (file-name-as-directory "content")
+                     (file-name-as-directory kind)
+                     (hugo--create-content-filename name))))))
 
 (defun hugo--get-post-type ()
   "Get the default type for a post."
