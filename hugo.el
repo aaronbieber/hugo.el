@@ -497,7 +497,9 @@ STATUS is an alist of status names and their printable values."
          (cdr (assoc 'server-status status)) "\n"
 
          (loop for type in types concat
-               (let ((drafts (mapcar (lambda (e) (file-name-nondirectory (car e)))
+               (let ((drafts (mapcar (lambda (e)
+                                       (concat
+                                        (file-name-nondirectory (car e)) "*"))
                                      (seq-filter (lambda (e) (equal (nth 6 e) "true"))
                                                  (cdr (assoc type all-items)))))
                      (items (mapcar (lambda (e) (file-name-nondirectory (car e)))
@@ -509,7 +511,7 @@ STATUS is an alist of status names and their printable values."
                                "      " (sentence-case type) ": "
                                (number-to-string (+ (length drafts) (length items))) "\n")
                               'face 'font-lock-function-name-face)
-                  (hugo--get-display-list drafts (intern type))
+                  (hugo--get-display-list drafts (intern type) 'italic)
                   (hugo--get-display-list items (intern type)))))
          "\n"
          "Press `?' for help.")
