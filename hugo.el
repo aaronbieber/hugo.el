@@ -57,6 +57,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map "?" 'hugo-toggle-command-window)
     (define-key map "q" 'hugo-status-quit)
+    (define-key map "Q" 'hugo-quit)
     (define-key map "s" 'hugo-start-stop-server)
     (define-key map "g" 'hugo-refresh-status)
     (define-key map "c" 'hugo-create-thing)
@@ -240,6 +241,12 @@ and the location of any currently open buffer will be ignored."
   (interactive)
   (hugo-toggle-command-window t)
   (quit-window))
+
+(defun hugo-quit ()
+  "Quit the entire Hugo system, destroying all state."
+  (interactive)
+  (ignore-errors (hugo--stop-server-process))
+  (quit-window t))
 
 (defun hugo-server-quit ()
   "Quit the Hugo Server window, preserving its buffer."
@@ -545,7 +552,8 @@ Note that BUFFER's contents will be destroyed."
        (hugo--legend-item "g" "Refresh" 18) "\n"
        (hugo--legend-item "!" "Show Process" 18)
        (hugo--legend-item "$" "Show Server" 18)
-       (hugo--legend-item "q" "Close status" 18))
+       (hugo--legend-item "q" "Close status" 18)
+       (hugo--legend-item "Q" "Quit Hugo" 18))
       (goto-char (point-min)))))
 
 (defun hugo--legend-item (key label column-width)
