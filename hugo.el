@@ -625,7 +625,10 @@ FACE-PROP."
 
 Types are simply the top-level directories within `content' as defined
 by the Hugo docs."
-  (let* ((all-items (hugo--list-all))
+  (let* ((all-items
+          (seq-filter (lambda (e)
+                        (> (length (split-string (car e) "/")) 2))
+                      (hugo--list-all)))
          (types (delete-dups (mapcar
                               (lambda (i) (list (nth 1 (split-string (car i) "/"))))
                               all-items)))
