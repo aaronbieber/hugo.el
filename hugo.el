@@ -456,7 +456,7 @@ If the buffer doesn't exist yet, it will be created and prepared."
     (or (get-buffer buffer-name)
         (let ((status-buffer (hugo--prepare-buffer-for-type "status" 'hugo-mode)))
           (with-current-buffer status-buffer
-            (add-to-invisibility-spec 'posts))
+            (setq buffer-invisibility-spec t))
           status-buffer))))
 
 (defun hugo--prepare-buffer-for-type (type &optional mode-function)
@@ -483,6 +483,9 @@ STATUS is an alist of status names and their printable values."
       (let ((inhibit-read-only t)
             (window (get-buffer-window))
             (pos (point)))
+        (if (eq buffer-invisibility-spec t)
+            (setq buffer-invisibility-spec
+                  (mapcar (lambda (e) (intern e)) types)))
         (erase-buffer)
         (insert
          (propertize "Hugo Status\n" 'face '(:inherit font-lock-constant-face :height 160))
