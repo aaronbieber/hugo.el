@@ -187,7 +187,7 @@ interactive prompt."
 
 (defcustom hugo-default-server-flags
   '(drafts)
-  "The default flags to pass to `jekyll serve'.
+  "The default flags to pass to `hugo serve'.
 
 Each option is a type of post that is normally ignored by the Hugo
 server.  The checked options will be enabled by default in the
@@ -675,7 +675,7 @@ The following keys are available in `hugo-mode':
   (add-hook 'post-command-hook 'hugo--highlight-current-line nil t))
 
 (define-derived-mode hugo-server-mode nil "Hugo[Server]"
-  "The major mode for interacting with a Jekyll server process.
+  "The major mode for interacting with a Hugo server process.
 
 The following keys are available in `hugo-server-mode':
 
@@ -683,7 +683,7 @@ The following keys are available in `hugo-server-mode':
   (setq truncate-lines t))
 
 (define-derived-mode hugo-process-mode nil "Hugo[Process]"
-  "The major mode for interacting with Hugo and Jekyll shell commands.
+  "The major mode for interacting with Hugo and Hugo shell commands.
 
 The following keys are available in `hugo-process-mode':
 
@@ -819,7 +819,7 @@ See `set-process-sentinel' for PROCESS and EVENT details."
                 (goto-char (process-mark proc)))))))))
 
 (defun hugo--find-server-address ()
-  "Try to find a Jekyll server address in the current buffer."
+  "Try to find a Hugo server address in the current buffer."
   (save-excursion
     (if (re-search-backward "\\(http://.*\\)/" nil t)
         (setq hugo-server-address (match-string 1)))))
