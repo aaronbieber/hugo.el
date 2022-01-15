@@ -4,7 +4,7 @@
 
 ;; Author: Aaron Bieber <aaron@aaronbieber.com>
 ;; Version: 1.0
-;; Package-Requires ((cl-lib "0.5"))
+;; Package-Requires ((cl-lib "0.5") (csv "2.1"))
 ;; Keywords: hugo, blog
 ;; URL: https://github.com/aaronbieber/hugo.el
 
@@ -26,7 +26,8 @@
 ;;; Code:
 
 (eval-when-compile
-  (require 'cl-lib))
+  (require 'cl-lib)
+  (require 'csv))
 
 (defface hugo-option-on
   '((t (:inherit 'font-lock-string-face)))
@@ -508,7 +509,6 @@ STATUS is an alist of status names and their printable values."
                                "      " (sentence-case type) ": \n")
                               'face 'font-lock-function-name-face)
                   (hugo--get-display-list drafts (intern type))
-                  (debug)
                   (hugo--get-display-list items (intern type)))))
          "\n"
          "Press `?' for help.")
@@ -585,23 +585,12 @@ items in this list, allowing them to be shown or hidden as a group."
 (defun hugo--list-all ()
   "Get all content items as structured data."
   (hugo--setup)
-  (let* ((default-directory (hugo--get-root))
-         (source
-          (delete ""
-                  (split-string
-                   (with-temp-buffer
-                     (let ((ret (call-process-shell-command (concat hugo-bin " list all") nil t)))
-                       (unless (zerop ret)
-                         (error (concat "'" hugo-bin " list all' exited abnormally: " (buffer-string))))
-                       (buffer-string)))
-                   "\n")))
-         (items
-          (mapcar (lambda (line) (cons
-                                  (concat (file-name-directory (car line))
-                                          (file-name-nondirectory (car line)))
-                                  (cdr line)))
-                  (cdr (mapcar (lambda (line) (split-string line ",")) source)))))
-    items))
+  (let* ((default-directory (hugo--get-root)))
+    (with-temp-buffer
+      (let ((ret (call-process-shell-command (concat hugo-bin " list all") nil t)))
+        (unless (zerop ret)
+          (error (concat "'" hugo-bin " list all' exited abnormally: " (buffer-string))))
+        (cdr (csv-parse-buffer nil))))))
 
 (defun sentence-case (s)
   "Convert the first word's first character to upper case and the rest to lower case in S."
