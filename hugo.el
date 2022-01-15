@@ -601,21 +601,18 @@ items in this list, allowing them to be shown or hidden as a group."
 
 Types are simply the top-level directories within `content' as defined
 by the Hugo docs."
-  ;; Get all items into alist by type
   (let* ((all-items (hugo--list-all))
          (types (delete-dups (mapcar
-                              (lambda (i) (list
-                                           (nth 1 (split-string (car i) "/"))))
+                              (lambda (i) (list (nth 1 (split-string (car i) "/"))))
                               all-items)))
          (content-items (reduce (lambda (seq item)
-                                  (let ((type
-                                         (nth 1 (split-string (car item) "/"))))
-                                    ;; (setf (cdr (assoc type seq)) (cons item (cdr (assoc type seq))))
+                                  (let ((type (nth 1 (split-string (car item) "/"))))
                                     (push item (cdr (assoc type seq)))
                                     seq))
                                 all-items
                                 :initial-value types)))
-    content-items))
+    (loop for type in content-items collect
+          (cons (car type) (nreverse (cdr type))))))
 
 (defun hugo--get-post-items ()
   "Get all post/draft items as lists of bare filenames."
