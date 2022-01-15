@@ -506,7 +506,8 @@ STATUS is an alist of status names and their printable values."
                  (concat
                   (propertize " " 'thing t 'hidden (intern type) 'heading t)
                   (propertize (concat
-                               "      " (sentence-case type) ": \n")
+                               "      " (sentence-case type) ": "
+                               (number-to-string (+ (length drafts) (length items))) "\n")
                               'face 'font-lock-function-name-face)
                   (hugo--get-display-list drafts (intern type))
                   (hugo--get-display-list items (intern type)))))
