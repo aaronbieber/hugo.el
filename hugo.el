@@ -438,13 +438,13 @@ the path to an Hugo site."
                (buffer-local-value 'hugo-root status-buffer))
           (buffer-local-value 'hugo-root status-buffer)
         (or (and this-dir
-                 (let ((candidate-dir (vc-find-root this-dir "config.toml")))
-                   (if candidate-dir (expand-file-name candidate-dir) nil)))
+                 (let ((candidate-dir (vc-find-root this-dir "content")))
+                   (if candidate-dir (expand-file-name candidate-dir))))
             (and (not (string= "" hugo-blog-root)) hugo-blog-root)
             (let ((candidate-dir (read-directory-name "Hugo site root: ")))
               (if (hugo--get-config candidate-dir)
                   (expand-file-name candidate-dir)
-                (prog2 (message "Could not find config.toml in `%s'." candidate-dir)
+                (prog2 (message "Could not find `content' in `%s'." candidate-dir)
                     nil)))))))
 
 (defun hugo--prepare-status-buffer ()
@@ -915,6 +915,19 @@ If REVERSE is not nil, move to the previous visible 'thing."
                    nil)))))
        (point)))
   (goto-char (line-beginning-position)))
+
+(defun hugo--get-config (dir)
+  "Return the `hugo config' output for DIR, or nil.
+
+This function calls `hugo config' and returns its output if it
+succeeds, or nil if the command exits with a non-zero status."
+  (with-temp-buffer
+    (setq-local default-directory dir)
+    (let* ((exit-code (call-process "hugo" nil (current-buffer) nil "config"))
+           (config-string (buffer-string)))
+      (if (= exit-code 0)
+          config-string
+        nil))))
 
 (defun hugo--get-line-type ()
   "Get the 'line type' property of the current line.
