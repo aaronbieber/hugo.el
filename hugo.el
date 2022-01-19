@@ -187,18 +187,6 @@ interactive prompt to start the server."
                  (const :tag "Expired posts" expired))
   :group   'hugo)
 
-(defcustom hugo-blog-root
-  ""
-  "The default location of your Hugo site.
-
-This variable is optional and, if you have more than one Hugo
-site, not recommended.  If a value is supplied, it will be used as the
-location of your Hugo site every time `hugo' is initialized
-in a new Emacs session.  You will never be prompted for a site location
-and the location of any currently open buffer will be ignored."
-  :type 'string
-  :group 'hugo)
-
 ;;; "Public" functions
 
 ;;;###autoload
@@ -422,13 +410,10 @@ it exists and do nothing otherwise."
 (defun hugo--get-root ()
   "Maybe return the root of the Hugo site.
 
-If `hugo-blog-root' has a value, it is assumed to be the correct
-blog root.
-
-Otherwise, we assume we are running from a buffer editing a file
-somewhere within the site.  If we are running from some other kind of
-buffer, or a buffer with no file, the user will be prompted to enter
-the path to an Hugo site."
+We assume we are running from a buffer editing a file somewhere within
+the site.  If we are running from some other kind of buffer, or a
+buffer with no file, the user will be prompted to enter the path to an
+Hugo site."
     (let ((status-buffer (get-buffer (hugo--buffer-name-for-type "status")))
           (this-dir (if (and (boundp 'dired-directory) dired-directory)
                         dired-directory
@@ -441,7 +426,6 @@ the path to an Hugo site."
         (or (and this-dir
                  (let ((candidate-dir (vc-find-root this-dir "content")))
                    (if candidate-dir (expand-file-name candidate-dir))))
-            (and (not (string= "" hugo-blog-root)) hugo-blog-root)
             (let ((candidate-dir (read-directory-name "Hugo site root: ")))
               (if (hugo--get-config candidate-dir)
                   (expand-file-name candidate-dir)
