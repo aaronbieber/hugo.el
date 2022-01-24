@@ -440,6 +440,7 @@ If the buffer doesn't exist yet, it will be created and prepared."
     (or (get-buffer buffer-name)
         (let ((status-buffer (hugo--prepare-buffer-for-type "status" 'hugo-mode)))
           (with-current-buffer status-buffer
+            (hugo-mode t)
             (setq buffer-invisibility-spec t))
           status-buffer))))
 
