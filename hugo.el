@@ -193,7 +193,7 @@ interactive prompt to start the server."
 (defun hugo-status ()
   "The main entry point into hugo."
   (interactive)
-  (let ((hugo-buffer (hugo--setup)))
+  (let ((hugo-buffer (hugo--setup t)))
     (if hugo-buffer
         (progn (hugo--draw-status hugo-buffer)
                (pop-to-buffer hugo-buffer)))))
@@ -380,14 +380,18 @@ it exists and do nothing otherwise."
   (pop-to-buffer (hugo--prepare-process-buffer)))
 
 ;;; "Private" functions
-(defun hugo--setup ()
-  "Stuff that has to happen before anything else can happen."
+(defun hugo--setup (&optional interactive)
+  "Stuff that has to happen before anything else can happen.
+
+If INTERACTIVE is not nil, allow user interactions.  Note that if
+INTERACTIVE is nil, this function may fail in a way the user could
+have prevented e.g. by providing a project root."
   ;; Only set up if we have to...
-  (let ((hugo-buffer (get-buffer (hugo--buffer-name-for-type "status"))))
+  (let ((hugo-buffer (get-buffer-create (hugo--buffer-name-for-type "status"))))
     (if (hugo--buffer-is-configured hugo-buffer)
         hugo-buffer
       (let* ((hugo-buffer (hugo--prepare-status-buffer))
-             (hugo-root (hugo--get-root)))
+             (hugo-root (hugo--get-root interactive)))
         (if (and hugo-buffer hugo-root)
             (progn (with-current-buffer hugo-buffer
                      (make-local-variable 'hugo-root))
@@ -407,13 +411,15 @@ it exists and do nothing otherwise."
          (and (assoc 'hugo-root vars)
               (string= (cdr (assoc 'major-mode vars)) "hugo-mode")))))
 
-(defun hugo--get-root ()
+(defun hugo--get-root (&optional prompt)
   "Maybe return the root of the Hugo site.
 
-We assume we are running from a buffer editing a file somewhere within
-the site.  If we are running from some other kind of buffer, or a
-buffer with no file, the user will be prompted to enter the path to an
-Hugo site."
+The root will be determined by climbing up the directory tree from the
+current buffer's file looking for a \"content\" directory.
+
+If the current buffer has no file, or no root can be determined from
+it, either this function will return nil, or, if PROMPT is not nil,
+the user will be prompted to find the root."
     (let ((status-buffer (get-buffer (hugo--buffer-name-for-type "status")))
           (this-dir (if (and (boundp 'dired-directory) dired-directory)
                         dired-directory
@@ -426,11 +432,11 @@ Hugo site."
         (or (and this-dir
                  (let ((candidate-dir (vc-find-root this-dir "content")))
                    (if candidate-dir (expand-file-name candidate-dir))))
-            (let ((candidate-dir (read-directory-name "Hugo site root: ")))
-              (if (hugo--get-config candidate-dir)
-                  (expand-file-name candidate-dir)
-                (prog2 (message "Could not find `content' in `%s'." candidate-dir)
-                    nil)))))))
+            (and prompt (let ((candidate-dir (read-directory-name "Hugo site root: ")))
+                          (if (hugo--get-config candidate-dir)
+                              (expand-file-name candidate-dir)
+                            (prog2 (message "Could not find `content' in `%s'." candidate-dir)
+                                nil))))))))
 
 (defun hugo--prepare-status-buffer ()
   "Return the Hugo (\"status\") buffer.
