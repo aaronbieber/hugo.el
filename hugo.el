@@ -739,9 +739,9 @@ This function returns the char value from CHOICES selected by the user."
   "Create a Hugo content filename from a human-readable NAME.
 
 For example, given the name `My First Post', return `my-first-post'."
-       (concat (replace-regexp-in-string
-                "^[^a-z0-9]" ""
-                (replace-regexp-in-string "[^a-z0-9-]" "-" (downcase name)))
+       (concat (string-trim
+                (replace-regexp-in-string "[^a-z0-9-]" "-" (downcase name))
+                "-*" "-*")
                hugo-post-extension))
 
 (defun hugo--run-hugo-command (command)
