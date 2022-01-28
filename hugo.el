@@ -387,7 +387,7 @@ If INTERACTIVE is not nil, allow user interactions.  Note that if
 INTERACTIVE is nil, this function may fail in a way the user could
 have prevented e.g. by providing a project root."
   ;; Only set up if we have to...
-  (let ((hugo-buffer (get-buffer-create (hugo--buffer-name-for-type "status"))))
+  (let ((hugo-buffer (get-buffer (hugo--buffer-name-for-type "status"))))
     (if (hugo--buffer-is-configured hugo-buffer)
         hugo-buffer
       (let* ((hugo-buffer (hugo--prepare-status-buffer))
@@ -441,11 +441,12 @@ the user will be prompted to find the root."
   "Return the Hugo (\"status\") buffer.
 
 If the buffer doesn't exist yet, it will be created and prepared."
-  (let ((buffer-name (hugo--buffer-name-for-type "status")))
-    (or (get-buffer buffer-name)
+  (let* ((buffer-name (hugo--buffer-name-for-type "status"))
+         (status-buffer (get-buffer buffer-name)))
+    (or (and (hugo--buffer-is-configured status-buffer) status-buffer)
         (let ((status-buffer (hugo--prepare-buffer-for-type "status" 'hugo-mode)))
           (with-current-buffer status-buffer
-            (hugo-mode t)
+            (hugo-mode)
             (setq buffer-invisibility-spec t))
           status-buffer))))
 
