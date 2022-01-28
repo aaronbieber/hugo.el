@@ -406,10 +406,9 @@ have prevented e.g. by providing a project root."
 (defun hugo--buffer-is-configured (buffer)
   "Return t if BUFFER is configured properly for Hugo."
   (and (bufferp buffer)
-       (let ((vars (buffer-local-variables
-                    (get-buffer buffer))))
-         (and (assoc 'hugo-root vars)
-              (string= (cdr (assoc 'major-mode vars)) "hugo-mode")))))
+       (with-current-buffer buffer
+         (and (boundp 'hugo-root)
+              (eq major-mode 'hugo-mode)))))
 
 (defun hugo--get-root (&optional prompt)
   "Maybe return the root of the Hugo site.
