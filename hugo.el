@@ -571,7 +571,8 @@ and must be passed the resulting BUFFER."
 Relies on the existence of the status buffer and its associated data."
   (hugo--setup)
   (let ((status-buffer (get-buffer (hugo--buffer-name-for-type "status"))))
-    (mapcar (lambda (e) (car e)) content-items)))
+    (with-current-buffer status-buffer
+      (mapcar (lambda (e) (car e)) content-items))))
 
 (defun hugo--get-display-list (things visibility-name &optional face-prop)
   "A helper to create a text column of THINGS.
