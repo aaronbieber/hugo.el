@@ -90,6 +90,7 @@
     (define-key map (kbd "C-c h s") 'hugo-status)
     (define-key map (kbd "C-c h p") 'hugo-insert-post-url)
     (define-key map (kbd "C-c h i") 'hugo-insert-image-url)
+    (define-key map (kbd "C-c h t") 'hugo-insert-time-string)
     (define-key map (kbd "C-c h b") 'hugo-browse)
     map)
   "A minor mode for interacting with Hugo.")
@@ -277,6 +278,15 @@ interactive prompt to start the server."
             (remove-from-invisibility-spec hidden)
           (add-to-invisibility-spec hidden))))
   (force-window-update (current-buffer)))
+
+(defun hugo-insert-time-string ()
+  "Insert a date and time string in the default Hugo format."
+  (interactive)
+  (let* ((tz (format "%+03d"
+                     (/ (car (current-time-zone)) 3600))))
+    (insert (concat
+             (format-time-string "%Y-%m-%dT%H:%M:%S")
+             tz ":00"))))
 
 (defun hugo-insert-image-url ()
   "Read the file name of an image and insert its relative path."
