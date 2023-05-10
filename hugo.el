@@ -126,8 +126,8 @@
 Enable this mode when you are editing blog files and wish to use these
 Hugo-specific convenience functions. For example, you may want to
 enable this mode in `markdown-mode'."
-  nil " Hugo"
-  hugo-minor-mode-map)
+  :lighter " Hugo"
+  :keymap hugo-minor-mode-map)
 
 ;;; Customization
 (defcustom hugo-bin "hugo"
@@ -499,7 +499,7 @@ STATUS is an alist of status names and their printable values."
          (propertize "      Server: " 'face 'font-lock-function-name-face)
          (cdr (assoc 'server-status status)) "\n"
 
-         (loop for type in types concat
+         (cl-loop for type in types concat
                (let ((drafts (mapcar (lambda (e)
                                        (concat
                                         (file-name-nondirectory (car e)) "*"))
@@ -592,7 +592,7 @@ items in this list, allowing them to be shown or hidden as a group.
 If provided, the `face' property will be set to the value of
 FACE-PROP."
   (let ((thing-list ""))
-    (loop for thing in things do
+    (cl-loop for thing in things do
           (setq thing-list
                 (concat thing-list
                         (propertize " " 'thing t)
@@ -632,7 +632,7 @@ by the Hugo docs."
                                     seq))
                                 all-items
                                 :initial-value types)))
-    (loop for type in content-items collect
+    (cl-loop for type in content-items collect
           (cons (car type) (nreverse (cdr type))))))
 
 (defun hugo--get-posts (content-list)
