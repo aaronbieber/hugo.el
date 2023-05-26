@@ -264,7 +264,7 @@ interactive prompt to start the server."
   (interactive)
   (let* ((type (hugo--get-line-type))
          (filename (hugo--get-line-filename))
-         (full-filename (hugo--expand-path-for-type filename type)))
+         (full-filename (expand-file-name filename (hugo--get-root))))
     (if (and type
              (file-exists-p full-filename))
         (pop-to-buffer (find-file full-filename)))))
@@ -500,22 +500,18 @@ STATUS is an alist of status names and their printable values."
          (cdr (assoc 'server-status status)) "\n"
 
          (cl-loop for type in types concat
-               (let ((drafts (mapcar (lambda (e)
-                                       (concat
-                                        (file-name-nondirectory (car e)) "*"))
-                                     (seq-filter (lambda (e) (equal (nth 6 e) "true"))
-                                                 (cdr (assoc type all-items)))))
-                     (items (mapcar (lambda (e) (file-name-nondirectory (car e)))
-                                    (seq-filter (lambda (e) (equal (nth 6 e) "false"))
-                                                (cdr (assoc type all-items))))))
-                 (concat
-                  (propertize " " 'thing t 'hidden (intern type) 'heading t)
-                  (propertize (concat
-                               "      " (sentence-case type) ": "
-                               (number-to-string (+ (length drafts) (length items))) "\n")
-                              'face 'font-lock-function-name-face)
-                  (hugo--get-display-list drafts (intern type) 'italic)
-                  (hugo--get-display-list items (intern type)))))
+                  (let ((drafts (seq-filter (lambda (e) (equal (nth 6 e) "true"))
+                                            (cdr (assoc type all-items))))
+                        (items (seq-filter (lambda (e) (equal (nth 6 e) "false"))
+                                           (cdr (assoc type all-items)))))
+                    (concat
+                     (propertize " " 'thing t 'hidden (intern type) 'heading t)
+                     (propertize (concat
+                                  "      " (sentence-case type) ": "
+                                  (number-to-string (+ (length drafts) (length items))) "\n")
+                                 'face 'font-lock-function-name-face)
+                     (hugo--get-display-list drafts (intern type) 'italic)
+                     (hugo--get-display-list items (intern type)))))
          "\n"
          "Press `?' for help.")
         (goto-char (if (< pos (point-max))
@@ -595,9 +591,11 @@ FACE-PROP."
     (cl-loop for thing in things do
           (setq thing-list
                 (concat thing-list
-                        (propertize " " 'thing t)
+                        (propertize " "
+                                    'thing t
+                                    'path (car thing))
                         (make-string 10 ? )
-                        (propertize thing 'face face-prop) "\n")))
+                        (propertize (nth 2 thing) 'face face-prop) "\n")))
     (propertize thing-list 'invisible visibility-name)))
 
 (defun hugo--list-all ()
@@ -960,23 +958,8 @@ text property at position zero."
 (defun hugo--get-line-filename ()
   "Get the filename at point."
   (save-excursion
-    (back-to-indentation)
-    (thing-at-point 'filename)))
-
-(defun hugo--expand-path-for-type (filename type)
-  "Given a FILENAME and symbol TYPE, expand the file's path.
-
-This function assumes that the base paths for every TYPE have been
-defined in the configuration."
-  (let ((type-dir
-         (concat
-          (file-name-as-directory "content") (symbol-name type))))
-    (and filename
-         type-dir
-         (expand-file-name
-          (concat
-           (file-name-as-directory type-dir) filename)
-          (hugo--get-root)))))
+    (beginning-of-line)
+    (get-text-property (point) 'path)))
 
 (defun hugo--start-server-process (&optional with-drafts with-future with-expired)
   "Run the server start command.
