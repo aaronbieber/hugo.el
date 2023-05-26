@@ -309,7 +309,14 @@ interactive prompt to start the server."
   "Read the filename of a post and insert a ref shortcode for it."
   (interactive)
   (let* ((browse-root (file-name-directory (buffer-file-name)))
-         (fname (read-file-name "Insert permalink to: " browse-root)))
+         (fname-input (read-file-name "Insert permalink to: " browse-root))
+         (fname-base (file-name-base fname-input))
+         (fname (if (or (equal fname-base "index")
+                        (equal fname-base "_index"))
+                    (file-name-nondirectory
+                     (directory-file-name
+                      (file-name-directory fname-input)))
+                  fname-base)))
     (if fname
         (insert (concat "{{< ref \"" (file-name-base fname) "\" >}}"))
       (message "No file selected!"))))
