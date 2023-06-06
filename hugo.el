@@ -602,7 +602,9 @@ FACE-PROP."
                                     'thing t
                                     'path (car thing))
                         (make-string 10 ? )
-                        (propertize (nth 2 thing) 'face face-prop) "\n")))
+                        (propertize
+                         (replace-regexp-in-string "\"\"" "\"" (nth 2 thing))
+                         'face face-prop) "\n")))
     (propertize thing-list 'invisible visibility-name)))
 
 (defun hugo--list-all ()
