@@ -158,6 +158,20 @@ this."
   :type 'string
   :group 'hugo)
 
+(defcustom hugo-insert-bundle-relative-images
+  t
+  "Insert image paths relative to the current post bundle.
+
+When non-nil, and when the current buffer is visiting a \"leaf
+bundle\" post, browsing for image files will begin in the current
+buffer file's directory, and resulting images will be inserted with a
+path relative to the buffer file.
+
+This is meant to accommodate Hugo sites using bundles for all pages of
+content."
+  :type 'boolean
+  :group 'hugo)
+
 (defcustom hugo-post-extension
   ".md"
   "The default extension to use for new content files."
@@ -298,21 +312,47 @@ as `/content/posts/newpost/index.md'."
              (format-time-string "%Y-%m-%dT%H:%M:%S")
              tz ":00"))))
 
+(defun hugo--visiting-bundle-file-p ()
+  "Non-nil when the current buffer's file appears to be a bundle.
+
+A bundle in this case must be a directory inside a 'type' directory
+within the 'content' directory. So:
+
+'content/posts/bundle-name/index.md'
+
+is a bundle file, but
+
+'content/posts/_index.md' is not."
+  (not (not
+        (and (buffer-file-name)
+             (string-match "content[/\\][^/\\]+[/\\][^/\\]+[/\\]" (buffer-file-name))
+             (string-match (concat "_?index" (regexp-quote hugo-post-extension))
+                           (buffer-file-name))))))
+
 (defun hugo-insert-image-url ()
   "Read the file name of an image and insert its relative path."
   (interactive)
   (let* ((root (hugo--get-root))
-         (static-root (concat (file-name-as-directory root)
-                              (file-name-as-directory hugo-static-image-path)))
-         (browse-root (if (string= hugo-last-image-path "")
-                          (concat (file-name-as-directory root)
-                                  (file-name-as-directory hugo-static-image-path))
-                        (file-name-directory hugo-last-image-path)))
+         (bundle-p (and hugo-insert-bundle-relative-images
+                        (hugo--visiting-bundle-file-p)))
+         (image-root (if bundle-p
+                         (file-name-directory (buffer-file-name))
+                       (concat (file-name-as-directory root)
+                               (file-name-as-directory hugo-static-image-path))))
+         (browse-root (if bundle-p
+                          (file-name-directory (buffer-file-name))
+                        (if (string= hugo-last-image-path "")
+                            (concat (file-name-as-directory root)
+                                    (file-name-as-directory hugo-static-image-path))
+                          (file-name-directory hugo-last-image-path))))
          (fname (read-file-name "Insert path to: " browse-root)))
     (if fname
         (progn
-          (setq hugo-last-image-path fname)
-          (insert (concat "/" (file-relative-name fname static-root))))
+          (and (not bundle-p)
+               (setq hugo-last-image-path fname))
+          (insert (concat
+                   (and (not bundle-p) "/")
+                   (file-relative-name fname image-root))))
       (message "No file selected!"))))
 
 (defun hugo-insert-post-url ()
