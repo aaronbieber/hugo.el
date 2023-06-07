@@ -188,6 +188,16 @@ interactive prompt to start the server."
                  (const :tag "Expired posts" expired))
   :group   'hugo)
 
+(defcustom hugo-create-post-bundles
+  nil
+  "Create a bundle rather than a single file for new posts.
+
+E.g., when nil (the default), new posts are created as
+`/content/posts/newpost.md'. When non-nil, new posts will be created
+as `/content/posts/newpost/index.md'."
+  :type  'boolean
+  :group 'hugo)
+
 ;;; "Public" functions
 
 ;;;###autoload
@@ -751,16 +761,20 @@ This function returns the char value from CHOICES selected by the user."
     (hugo--run-hugo-command
      (concat "new " (concat (file-name-as-directory "content")
                             (file-name-as-directory kind)
-                            (hugo--create-content-filename name))))))
+                            (if hugo-create-post-bundles
+                                (concat (file-name-as-directory
+                                         (hugo--create-content-basename name))
+                                        "index")
+                              (hugo--create-content-basename name))
+                            hugo-post-extension)))))
 
-(defun hugo--create-content-filename (name)
-  "Create a Hugo content filename from a human-readable NAME.
+(defun hugo--create-content-basename (name)
+  "Create a Hugo content basename from a human-readable NAME.
 
 For example, given the name `My First Post', return `my-first-post'."
-       (concat (string-trim
-                (replace-regexp-in-string "[^a-z0-9-]" "-" (downcase name))
-                "-*" "-*")
-               hugo-post-extension))
+  (concat (string-trim
+           (replace-regexp-in-string "[^a-z0-9-]" "-" (downcase name))
+           "-*" "-*")))
 
 (defun hugo--run-hugo-command (command)
   "Run an Hugo COMMAND."
