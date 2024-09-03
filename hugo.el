@@ -678,7 +678,11 @@ Types are simply the top-level directories within `content' as defined
 by the Hugo docs."
   (let* ((all-items
           (seq-filter (lambda (e)
-                        (> (length (split-string (car e) "/")) 2))
+                        (and
+                         ;; Has at least two path components
+                         (> (length (split-string (car e) "/")) 2)
+                         ;; Has a title
+                         (> (length (nth 2 e)) 0)))
                       (hugo--list-all)))
          (types (delete-dups (mapcar
                               (lambda (i) (list (nth 1 (split-string (car i) "/"))))
