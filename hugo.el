@@ -802,15 +802,19 @@ This function returns the char value from CHOICES selected by the user."
   (hugo--setup)
   (hugo-toggle-command-window t)
   (let ((name (read-string "Content name: ")))
-    (hugo--run-hugo-command
-     (concat "new " (concat (file-name-as-directory "content")
-                            (file-name-as-directory kind)
-                            (if hugo-create-post-bundles
-                                (concat (file-name-as-directory
-                                         (hugo--create-content-basename name))
-                                        "index")
-                              (hugo--create-content-basename name))
-                            hugo-post-extension)))))
+    (hugo--create-content kind name)))
+
+(defun hugo--create-content (kind name)
+  "Create a new Hugo content file of KIND, having NAME."
+  (hugo--run-hugo-command
+   (concat "new " (concat (file-name-as-directory "content")
+                          (file-name-as-directory kind)
+                          (if hugo-create-post-bundles
+                              (concat (file-name-as-directory
+                                       (hugo--create-content-basename name))
+                                      "index")
+                            (hugo--create-content-basename name))
+                          hugo-post-extension))))
 
 (defun hugo--create-content-basename (name)
   "Create a Hugo content basename from a human-readable NAME.
