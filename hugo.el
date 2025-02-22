@@ -498,7 +498,7 @@ the user will be prompted to find the root."
         (or (and this-dir
                  (let ((candidate-dir (vc-find-root this-dir "content")))
                    (if candidate-dir (expand-file-name candidate-dir))))
-            (and prompt (let ((candidate-dir (read-directory-name "Hugo site root: ")))
+            (and prompt (let ((candidate-dir (read-directory-name "Hugo site root: " default-directory)))
                           (if (hugo--get-config candidate-dir)
                               (expand-file-name candidate-dir)
                             (prog2 (message "Could not find `content' in `%s'." candidate-dir)
