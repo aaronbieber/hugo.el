@@ -89,6 +89,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c h s") 'hugo-status)
     (define-key map (kbd "C-c h p") 'hugo-insert-post-url)
+    (define-key map (kbd "C-c h f") 'hugo-insert-post-url-by-search)
     (define-key map (kbd "C-c h i") 'hugo-insert-image-url)
     (define-key map (kbd "C-c h t") 'hugo-insert-time-string)
     (define-key map (kbd "C-c h b") 'hugo-browse)
@@ -370,6 +371,25 @@ is a bundle file, but
     (if fname
         (insert (concat "{{< ref \"" (file-name-base fname) "\" >}}"))
       (message "No file selected!"))))
+
+(defun hugo-insert-post-url-by-search ()
+  "Search in content files and insert a ref to the selected match."
+  (interactive)
+
+  (let* ((search-string (read-string "Search for: "))
+         (matches (hugo--search-content-files search-string))
+         (selected-file (hugo--select-match matches)))
+    (when selected-file
+      (let* ((fname-base (file-name-base selected-file))
+             (fname (if (or (equal fname-base "index")
+                            (equal fname-base "_index"))
+                        (file-name-nondirectory
+                         (directory-file-name
+                          (file-name-directory selected-file)))
+                      fname-base)))
+        (if fname
+            (insert (concat "{{< ref \"" (file-name-base fname) "\" >}}"))
+          (message "No file selected!"))))))
 
 (defun hugo-toggle-command-window (&optional hide)
   "Toggle the display of a helpful command window.
@@ -1097,6 +1117,112 @@ Standard arguments PROCESS and EVENT correspond to those documented in
                       (erase-buffer)
                       (insert (propertize "Hugo server has finished.\n\n" 'face 'font-lock-warning-face))
                       (goto-char (point-max)))))))))
+(defun hugo--search-content-files (search-string)
+  "Search for SEARCH-STRING using external tools (ag, then grep).
+Returns a list of (filename . line-content) pairs for matches."
+  (cond
+   ((executable-find "ag")
+    (hugo--search-with-ag search-string))
+   (t
+    (hugo--search-with-grep search-string))))
+
+(defun hugo--search-with-ag (search-string)
+  "Search for SEARCH-STRING using the silver searcher (ag)."
+  (let ((project-root (hugo--get-root))
+        (matches '())
+        (seen-lines (make-hash-table :test 'equal)))
+    (when project-root
+      (let ((default-directory project-root))
+        (with-temp-buffer
+          (when (zerop (call-process "ag" nil t nil
+                                     "--literal"
+                                     "--nogroup"
+                                     "--noheading"
+                                     "--line-number"
+                                     "--max-count" "5"  ; Reduced from 100
+                                     "--ignore-case"
+                                     "-G" "\\.(md|txt|org)$"
+                                     search-string))
+            (goto-char (point-min))
+            (while (not (eobp))
+              (let ((line (buffer-substring-no-properties
+                           (line-beginning-position)
+                           (line-end-position))))
+                ;; Only process non-empty lines that match the expected format
+                (when (and (not (string-empty-p line))
+                           (string-match "\\([^:]+\\):\\([0-9]+\\):\\(.*\\)" line))
+                  (let* ((file (match-string 1 line))
+                         (line-num (match-string 2 line))
+                         (content (match-string 3 line))
+                         (full-path (expand-file-name file project-root))
+                         (unique-key (format "%s:%s:%s" full-path line-num content)))
+                    ;; Only add if we haven't seen this exact line before
+                    (unless (gethash unique-key seen-lines)
+                      (puthash unique-key t seen-lines)
+                      (push (cons full-path content) matches)))))
+              (forward-line 1))))))
+    (nreverse matches)))
+
+(defun hugo--search-with-grep (search-string)
+  "Search for SEARCH-STRING using standard grep."
+  (let ((project-root (hugo--get-root))
+        (matches '())
+        (seen-lines (make-hash-table :test 'equal)))
+    (when project-root
+      (let ((default-directory project-root))
+        (with-temp-buffer
+          (when (zerop (call-process "grep" nil t nil
+                                     "-r"
+                                     "-n"
+                                     "-i"
+                                     "--max-count=5"
+                                     "--include=*.md"
+                                     "--include=*.txt"
+                                     "--include=*.org"
+                                     search-string
+                                     "."))
+            (goto-char (point-min))
+            (while (not (eobp))
+              (let ((line (buffer-substring-no-properties
+                           (line-beginning-position)
+                           (line-end-position))))
+                ;; Only process non-empty lines that match the expected format
+                (when (and (not (string-empty-p line))
+                           (string-match "\\([^:]+\\):\\([0-9]+\\):\\(.*\\)" line))
+                  (let* ((file (match-string 1 line))
+                         (line-num (match-string 2 line))
+                         (content (match-string 3 line))
+                         (full-path (expand-file-name file project-root))
+                         (unique-key (format "%s:%s:%s" full-path line-num content)))
+                    ;; Only add if we haven't seen this exact line before
+                    (unless (gethash unique-key seen-lines)
+                      (puthash unique-key t seen-lines)
+                      (push (cons full-path content) matches)))))
+              (forward-line 1))))))
+    (nreverse matches)))
+
+(defun hugo--select-match (matches)
+  "Let user select from MATCHES using `completing-read'.
+
+Returns the selected filename or nil if cancelled."
+  (when matches
+    (let* ((candidates (mapcar (lambda (match)
+                                (let ((file (car match))
+                                      (line (cdr match)))
+                                  (cons (format "%s: %s"
+                                               (file-name-nondirectory file)
+                                               (string-trim line))
+                                        file)))
+                              matches))
+           (selection (completing-read "Select match: " candidates nil t)))
+      (cdr (assoc selection candidates)))))
+
+(defun blog--get-relative-path (file)
+  "Convert FILE to a relative path suitable for markdown links."
+  (let ((project-root (blog--get-project-root)))
+    (if project-root
+        (file-relative-name file project-root)
+      (file-name-nondirectory file))))
 
 (provide 'hugo)
 ;;; hugo.el ends here
