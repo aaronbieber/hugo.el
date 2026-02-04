@@ -252,6 +252,7 @@ as `/content/posts/newpost/index.md'."
   "Quit the entire Hugo system, destroying all state."
   (interactive)
   (ignore-errors (hugo--stop-server-process))
+  (hugo--kill-project-buffers)
   (quit-window t))
 
 (defun hugo-server-quit ()
@@ -467,6 +468,15 @@ it exists and do nothing otherwise."
   (pop-to-buffer (hugo--prepare-process-buffer)))
 
 ;;; "Private" functions
+(defun hugo--kill-project-buffers ()
+  "Kill all buffers visiting files within the Hugo project root."
+  (when-let ((root (hugo--get-root)))
+    (dolist (buffer (buffer-list))
+      (when-let ((file-name (buffer-file-name buffer)))
+        (when (string-prefix-p (expand-file-name root)
+                               (expand-file-name file-name))
+          (kill-buffer buffer))))))
+
 (defun hugo--setup (&optional interactive)
   "Stuff that has to happen before anything else can happen.
 
