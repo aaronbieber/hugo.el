@@ -613,7 +613,9 @@ STATUS is an alist of status names and their printable values."
                     (concat
                      (propertize " " 'thing t 'hidden (intern type) 'heading t)
                      (propertize (concat
-                                  "      " (sentence-case type) ": "
+                                  "      " (sentence-case (if (string= type "<root-pages>")
+                                                                         "Pages"
+                                                                       type)) ": "
                                   (number-to-string (+ (length drafts) (length items))) "\n")
                                  'face 'font-lock-function-name-face)
                      (hugo--get-display-list drafts (intern type) max-title-width 'italic)
@@ -767,17 +769,21 @@ Types are simply the top-level directories within `content' as defined
 by the Hugo docs."
   (let* ((all-items
           (seq-filter (lambda (e)
-                        (and
-                         ;; Has at least two path components
-                         (> (length (split-string (car e) "/")) 2)
-                         ;; Has a title
-                         (> (length (nth 2 e)) 0)))
+                        ;; Has a title
+                        (> (length (nth 2 e)) 0))
                       (hugo--list-all)))
          (types (delete-dups (mapcar
-                              (lambda (i) (list (nth 1 (split-string (car i) "/"))))
+                              (lambda (i)
+                                (let ((path-parts (split-string (car i) "/")))
+                                  (list (if (> (length path-parts) 2)
+                                            (nth 1 path-parts)      ; Regular section
+                                          "<root-pages>"))))        ; Sentinel for root-level pages
                               all-items)))
          (content-items (reduce (lambda (seq item)
-                                  (let ((type (nth 1 (split-string (car item) "/"))))
+                                  (let* ((path-parts (split-string (car item) "/"))
+                                         (type (if (> (length path-parts) 2)
+                                                   (nth 1 path-parts)   ; Regular section
+                                                 "<root-pages>")))      ; Sentinel for root-level pages
                                     (push item (cdr (assoc type seq)))
                                     seq))
                                 all-items
