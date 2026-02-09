@@ -45,6 +45,11 @@
   "Face used to highlight the active line."
   :group 'hugo)
 
+(defface hugo-date-face
+  '((t (:foreground "gray50")))
+  "Face for displaying dates in Hugo status buffer."
+  :group 'hugo)
+
 (defvar hugo-highlight-current-line-overlay
   ;; Dummy initialization
   (make-overlay 1 1)
@@ -211,6 +216,19 @@ E.g., when nil (the default), new posts are created as
 `/content/posts/newpost.md'. When non-nil, new posts will be created
 as `/content/posts/newpost/index.md'."
   :type  'boolean
+  :group 'hugo)
+
+(defcustom hugo-date-format
+  "%B %-d, %Y"
+  "Format string for displaying dates in the Hugo status buffer.
+
+This should be a format string suitable for `format-time-string'.
+Examples:
+  \"%B %-d, %Y\"     -> January 1, 2006
+  \"%Y-%m-%d\"       -> 2006-01-01
+  \"%b %-d, %Y\"     -> Jan 1, 2006
+  \"%A, %B %-d, %Y\" -> Monday, January 1, 2006"
+  :type  'string
   :group 'hugo)
 
 ;;; "Public" functions
@@ -566,7 +584,8 @@ If the buffer doesn't exist yet, it will be created and prepared."
 STATUS is an alist of status names and their printable values."
   (let* ((status (hugo--get-status-data buffer))
          (all-items (cdr (assoc 'content-items status)))
-         (types (delete-dups (mapcar (lambda (e) (car e)) all-items))))
+         (types (delete-dups (mapcar (lambda (e) (car e)) all-items)))
+         (max-title-width (hugo--calculate-max-title-width all-items)))
     (with-current-buffer buffer
       (let ((inhibit-read-only t)
             (window (get-buffer-window))
@@ -597,8 +616,8 @@ STATUS is an alist of status names and their printable values."
                                   "      " (sentence-case type) ": "
                                   (number-to-string (+ (length drafts) (length items))) "\n")
                                  'face 'font-lock-function-name-face)
-                     (hugo--get-display-list drafts (intern type) 'italic)
-                     (hugo--get-display-list items (intern type)))))
+                     (hugo--get-display-list drafts (intern type) max-title-width 'italic)
+                     (hugo--get-display-list items (intern type) max-title-width))))
          "\n"
          "Press `?' for help.")
         (goto-char (if (< pos (point-max))
@@ -667,27 +686,29 @@ Relies on the existence of the status buffer and its associated data."
     (with-current-buffer status-buffer
       (mapcar (lambda (e) (car e)) content-items))))
 
-(defun hugo--get-display-list (things visibility-name &optional face-prop)
-  "A helper to create a text column of THINGS.
+(defun hugo--get-display-list (things visibility-name max-title-width &optional face-prop)
+  "A helper to create a text column of THINGS with aligned date column.
 
 VISIBILITY-NAME will be applied to the `invisible' property of all
 items in this list, allowing them to be shown or hidden as a group.
+MAX-TITLE-WIDTH is used to align the date column across all content types.
 If provided, the `face' property will be set to the value of
 FACE-PROP."
   (let ((thing-list ""))
     (cl-loop for thing in things do
-          (setq thing-list
-                (concat thing-list
-                        (propertize " "
-                                    'thing t
-                                    'path (car thing))
-                        (make-string 10 ? )
-                        (propertize
-                         (let ((title (replace-regexp-in-string "\"\"" "\"" (nth 2 thing))))
-                           (if (hugo--is-branch-bundle-p thing)
-                               (concat title " (index)")
-                             title))
-                         'face face-prop) "\n")))
+          (let* ((title (hugo--format-title thing))
+                 (date (hugo--format-date thing))
+                 (padding (max 10 (- max-title-width (length title) -10))))
+            (setq thing-list
+                  (concat thing-list
+                          (propertize " "
+                                      'thing t
+                                      'path (car thing))
+                          (make-string 10 ? )
+                          (propertize title 'face face-prop)
+                          (make-string padding ? )
+                          (propertize date 'face 'hugo-date-face)
+                          "\n"))))
     (propertize thing-list 'invisible visibility-name)))
 
 (defun hugo--list-all ()
@@ -708,6 +729,36 @@ FACE-PROP."
   "Return t if ITEM represents a branch bundle page (_index file)."
   (let ((path (car item)))
     (string-match-p "_index\\." path)))
+
+(defun hugo--format-date (item)
+  "Format the date from ITEM using `hugo-date-format'."
+  (let ((date-string (nth 3 item)))
+    (if (and date-string
+             (stringp date-string)
+             (not (string-empty-p date-string)))
+        (let* ((parsed-time (ignore-errors (date-to-time date-string))))
+          (if parsed-time
+              (format-time-string hugo-date-format parsed-time)
+            "Invalid date"))
+      "No date")))
+
+(defun hugo--format-title (item)
+  "Format the title from ITEM, adding branch bundle annotation if needed."
+  (let ((title (replace-regexp-in-string "\"\"" "\"" (nth 2 item))))
+    (if (hugo--is-branch-bundle-p item)
+        (concat title " (index)")
+      title)))
+
+(defun hugo--calculate-max-title-width (all-items)
+  "Calculate the maximum title width across ALL-ITEMS for column alignment."
+  (if (null all-items)
+      50  ; Default minimum width when no content
+    (let ((max-width 0))
+      (dolist (type-items all-items)
+        (dolist (item (cdr type-items))
+          (let ((title-width (length (hugo--format-title item))))
+            (setq max-width (max max-width title-width)))))
+      (max max-width 20))))  ; Ensure minimum width of 20
 
 (defun hugo--get-content-items ()
   "Get all content items in an alist by type.
@@ -733,7 +784,7 @@ by the Hugo docs."
                                 :initial-value types)))
     (cl-loop for type in content-items collect
           (cons (car type)
-                (let* ((items (cdr type))
+                (let* ((items (nreverse (cdr type)))  ; Restore chronological order (newest first)
                        (branch-bundles (seq-filter 'hugo--is-branch-bundle-p items))
                        (regular-items (seq-filter (lambda (item) (not (hugo--is-branch-bundle-p item))) items)))
                   (append branch-bundles regular-items))))))
