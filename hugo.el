@@ -683,7 +683,10 @@ FACE-PROP."
                                     'path (car thing))
                         (make-string 10 ? )
                         (propertize
-                         (replace-regexp-in-string "\"\"" "\"" (nth 2 thing))
+                         (let ((title (replace-regexp-in-string "\"\"" "\"" (nth 2 thing))))
+                           (if (hugo--is-branch-bundle-p thing)
+                               (concat title " (index)")
+                             title))
                          'face face-prop) "\n")))
     (propertize thing-list 'invisible visibility-name)))
 
@@ -700,6 +703,11 @@ FACE-PROP."
 (defun sentence-case (s)
   "Convert the first word's first character to upper case and the rest to lower case in S."
   (concat (upcase (substring s 0 1)) (downcase (substring s 1))))
+
+(defun hugo--is-branch-bundle-p (item)
+  "Return t if ITEM represents a branch bundle page (_index file)."
+  (let ((path (car item)))
+    (string-match-p "_index\\." path)))
 
 (defun hugo--get-content-items ()
   "Get all content items in an alist by type.
@@ -724,7 +732,11 @@ by the Hugo docs."
                                 all-items
                                 :initial-value types)))
     (cl-loop for type in content-items collect
-          (cons (car type) (nreverse (cdr type))))))
+          (cons (car type)
+                (let* ((items (cdr type))
+                       (branch-bundles (seq-filter 'hugo--is-branch-bundle-p items))
+                       (regular-items (seq-filter (lambda (item) (not (hugo--is-branch-bundle-p item))) items)))
+                  (append branch-bundles regular-items))))))
 
 (defun hugo--get-posts (content-list)
   "Get a list of posts files from the CONTENT-LIST assoc."
