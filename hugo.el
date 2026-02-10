@@ -4,7 +4,7 @@
 
 ;; Author: Aaron Bieber <aaron@aaronbieber.com>
 ;; Version: 1.0
-;; Package-Requires ((cl-lib "0.5") (csv "2.1"))
+;; Package-Requires ((cl-lib "0.5"))
 ;; Keywords: hugo, blog
 ;; URL: https://github.com/aaronbieber/hugo.el
 
@@ -26,8 +26,7 @@
 ;;; Code:
 
 (eval-when-compile
-  (require 'cl-lib)
-  (require 'csv))
+  (require 'cl-lib))
 
 (defface hugo-option-on
   '((t (:inherit 'font-lock-string-face)))
@@ -239,8 +238,8 @@ Examples:
   (interactive)
   (let ((hugo-buffer (hugo--setup t)))
     (if hugo-buffer
-        (progn (hugo--draw-status hugo-buffer)
-               (pop-to-buffer hugo-buffer)))))
+        (progn (pop-to-buffer hugo-buffer)
+               (hugo--draw-status hugo-buffer)))))
 
 (defun hugo-refresh-status ()
   "Refresh the status display."
@@ -578,10 +577,37 @@ If the buffer doesn't exist yet, it will be created and prepared."
               (funcall mode-function)))
         buf))))
 
+(defun hugo--show-working-indicator (buffer)
+  "Show a [WORKING] indicator in BUFFER.
+
+If BUFFER is empty, draw a skeleton status display with the indicator.
+Otherwise, non-destructively insert the indicator after the heading."
+  (with-current-buffer buffer
+    (let ((inhibit-read-only t))
+      (if (= (point-min) (point-max))
+          (insert
+           (propertize "Hugo Status" 'face '(:inherit font-lock-constant-face :height 160))
+           " " (propertize "[WORKING]" 'face 'warning)
+           "\n\n"
+           (propertize " " 'thing t 'heading t)
+           (propertize "   Blog root: " 'face 'font-lock-function-name-face)
+           hugo-root "\n"
+           (propertize " " 'thing t 'heading t)
+           (propertize "      Server: " 'face 'font-lock-function-name-face)
+           (hugo--server-status-string) "\n"
+           "\n"
+           "Press `?' for help.")
+        (save-excursion
+          (goto-char (point-min))
+          (end-of-line)
+          (insert " " (propertize "[WORKING]" 'face 'warning)))))))
+
 (defun hugo--draw-status (buffer)
   "Draw a display of STATUS in BUFFER.
 
 STATUS is an alist of status names and their printable values."
+  (hugo--show-working-indicator buffer)
+  (redisplay)
   (let* ((status (hugo--get-status-data buffer))
          (all-items (cdr (assoc 'content-items status)))
          (types (delete-dups (mapcar (lambda (e) (car e)) all-items)))
@@ -605,6 +631,7 @@ STATUS is an alist of status names and their printable values."
          (propertize "      Server: " 'face 'font-lock-function-name-face)
          (cdr (assoc 'server-status status)) "\n"
 
+
          (cl-loop for type in types concat
                   (let ((drafts (seq-filter (lambda (e) (equal (nth 6 e) "true"))
                                             (cdr (assoc type all-items))))
@@ -614,8 +641,8 @@ STATUS is an alist of status names and their printable values."
                      (propertize " " 'thing t 'hidden (intern type) 'heading t)
                      (propertize (concat
                                   "      " (sentence-case (if (string= type "<root-pages>")
-                                                                         "Pages"
-                                                                       type)) ": "
+                                                               "Pages"
+                                                             type)) ": "
                                   (number-to-string (+ (length drafts) (length items))) "\n")
                                  'face 'font-lock-function-name-face)
                      (hugo--get-display-list drafts (intern type) max-title-width 'italic)
@@ -713,6 +740,38 @@ FACE-PROP."
                           "\n"))))
     (propertize thing-list 'invisible visibility-name)))
 
+(defun hugo--parse-csv-line (line)
+  "Parse a single CSV LINE into a list of field strings."
+  (let ((pos 0)
+        (len (length line))
+        fields)
+    (while (< pos len)
+      (if (eq (aref line pos) ?\")
+          ;; Quoted field: find matching close quote.
+          (let ((end (1+ pos)))
+            (while (< end len)
+              (if (eq (aref line end) ?\")
+                  (if (and (< (1+ end) len) (eq (aref line (1+ end)) ?\"))
+                      (setq end (+ end 2)) ; escaped "" -> skip both
+                    (cl-return))            ; closing quote
+                (setq end (1+ end))))
+            (push (replace-regexp-in-string
+                   "\"\"" "\""
+                   (substring line (1+ pos) end))
+                  fields)
+            (setq pos (min (+ end 2) len))) ; skip closing quote + comma
+        ;; Unquoted field: scan to next comma.
+        (let ((end (or (cl-position ?, line :start pos) len)))
+          (push (substring line pos end) fields)
+          (setq pos (min (1+ end) len)))))
+    (nreverse fields)))
+
+(defun hugo--parse-csv (text)
+  "Parse CSV TEXT into a list of rows, skipping the header row.
+Each row is a list of field strings."
+  (let ((lines (split-string text "\n" t)))
+    (mapcar #'hugo--parse-csv-line (cdr lines))))
+
 (defun hugo--list-all ()
   "Get all content items as structured data."
   (hugo--setup)
@@ -721,7 +780,7 @@ FACE-PROP."
       (let ((ret (call-process-shell-command (concat hugo-bin " list all") nil t)))
         (unless (zerop ret)
           (error (concat "'" hugo-bin " list all' exited abnormally: " (buffer-string))))
-        (cdr (csv-parse-buffer nil))))))
+        (hugo--parse-csv (buffer-string))))))
 
 (defun sentence-case (s)
   "Convert the first word's first character to upper case and the rest to lower case in S."
