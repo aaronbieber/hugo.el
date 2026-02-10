@@ -606,16 +606,18 @@ Otherwise, non-destructively insert the indicator after the heading."
   "Draw a display of STATUS in BUFFER.
 
 STATUS is an alist of status names and their printable values."
-  (hugo--show-working-indicator buffer)
-  (redisplay)
-  (let* ((status (hugo--get-status-data buffer))
-         (all-items (cdr (assoc 'content-items status)))
-         (types (delete-dups (mapcar (lambda (e) (car e)) all-items)))
-         (max-title-width (hugo--calculate-max-title-width all-items)))
-    (with-current-buffer buffer
-      (let ((inhibit-read-only t)
-            (window (get-buffer-window))
-            (pos (point)))
+  (let ((first-load (with-current-buffer buffer
+                      (= (point-min) (point-max)))))
+    (hugo--show-working-indicator buffer)
+    (redisplay)
+    (let* ((status (hugo--get-status-data buffer))
+           (all-items (cdr (assoc 'content-items status)))
+           (types (delete-dups (mapcar (lambda (e) (car e)) all-items)))
+           (max-title-width (hugo--calculate-max-title-width all-items)))
+      (with-current-buffer buffer
+        (let ((inhibit-read-only t)
+              (window (get-buffer-window))
+              (pos (point)))
         (if (eq buffer-invisibility-spec t)
             (setq buffer-invisibility-spec
                   (mapcar (lambda (e) (intern e)) types)))
@@ -649,11 +651,13 @@ STATUS is an alist of status names and their printable values."
                      (hugo--get-display-list items (intern type) max-title-width))))
          "\n"
          "Press `?' for help.")
-        (goto-char (if (< pos (point-max))
-                       pos
-                     (point-min)))
+        (goto-char (if first-load
+                       (progn (goto-char (point-min))
+                              (search-forward "Blog root: " nil t)
+                              (line-beginning-position))
+                     (min pos (point-max))))
         (if window
-            (force-window-update window))))))
+            (force-window-update window)))))))
 
 (defun hugo--draw-command-help (buffer)
   "Output the help menu into BUFFER.
