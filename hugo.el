@@ -1135,7 +1135,7 @@ If REVERSE is not nil, move to the previous visible 'thing."
       (let ((end (save-excursion
                    (forward-line 1)
                    (point))))
-        (move-overlay hugo-highlight-current-line-overlay (line-beginning-position) end))
+        (move-overlay hugo-highlight-current-line-overlay (line-beginning-position) end (current-buffer)))
     (delete-overlay hugo-highlight-current-line-overlay)))
 
 (defun hugo--move-to-next-prop (prop-name)
