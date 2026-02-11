@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(hugo help:*)",
+      "Bash(hugo list:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
