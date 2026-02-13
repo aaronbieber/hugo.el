@@ -239,12 +239,16 @@ Examples:
   (let ((hugo-buffer (hugo--setup t)))
     (if hugo-buffer
         (progn (pop-to-buffer hugo-buffer)
+               (hugo--show-working-indicator hugo-buffer)
+               (redisplay)
                (hugo--draw-status hugo-buffer)))))
 
 (defun hugo-refresh-status ()
   "Refresh the status display."
   (interactive)
   (hugo-toggle-command-window t)
+  (hugo--show-working-indicator (current-buffer))
+  (redisplay)
   (hugo--get-status-data (current-buffer) t)
   (hugo--maybe-redraw-status))
 
@@ -585,39 +589,41 @@ Otherwise, non-destructively insert the indicator after the heading."
   (with-current-buffer buffer
     (let ((inhibit-read-only t))
       (if (= (point-min) (point-max))
-          (insert
-           (propertize "Hugo Status" 'face '(:inherit font-lock-constant-face :height 160))
-           " " (propertize "[WORKING]" 'face 'warning)
-           "\n\n"
-           (propertize " " 'thing t 'heading t)
-           (propertize "   Blog root: " 'face 'font-lock-function-name-face)
-           hugo-root "\n"
-           (propertize " " 'thing t 'heading t)
-           (propertize "      Server: " 'face 'font-lock-function-name-face)
-           (hugo--server-status-string) "\n"
-           "\n"
-           "Press `?' for help.")
+          (progn
+            (insert
+             (propertize "Hugo Status" 'face '(:inherit font-lock-constant-face :height 160))
+             " " (propertize "[WORKING]" 'face 'warning)
+             "\n\n"
+             (propertize " " 'thing t 'heading t)
+             (propertize "   Blog root: " 'face 'font-lock-function-name-face)
+             hugo-root "\n"
+             (propertize " " 'thing t 'heading t)
+             (propertize "      Server: " 'face 'font-lock-function-name-face)
+             (hugo--server-status-string) "\n"
+             "\n"
+             "Press `?' for help.")
+            (goto-char (point-min))
+            (search-forward "Blog root: " nil t)
+            (beginning-of-line))
         (save-excursion
           (goto-char (point-min))
           (end-of-line)
           (insert " " (propertize "[WORKING]" 'face 'warning)))))))
 
 (defun hugo--draw-status (buffer)
-  "Draw a display of STATUS in BUFFER.
-
-STATUS is an alist of status names and their printable values."
-  (let ((first-load (with-current-buffer buffer
-                      (= (point-min) (point-max)))))
-    (hugo--show-working-indicator buffer)
-    (redisplay)
-    (let* ((status (hugo--get-status-data buffer))
+  "Draw a display of STATUS in BUFFER."
+  (let* ((status (hugo--get-status-data buffer))
            (all-items (cdr (assoc 'content-items status)))
            (types (delete-dups (mapcar (lambda (e) (car e)) all-items)))
            (max-title-width (hugo--calculate-max-title-width all-items)))
       (with-current-buffer buffer
         (let ((inhibit-read-only t)
-              (window (get-buffer-window))
-              (pos (point)))
+              (window (get-buffer-window)))
+          (save-excursion
+            (goto-char (point-min))
+            (when (search-forward " [WORKING]" (line-end-position) t)
+              (delete-region (match-beginning 0) (match-end 0))))
+        (let ((pos (point)))
         (if (eq buffer-invisibility-spec t)
             (setq buffer-invisibility-spec
                   (mapcar (lambda (e) (intern e)) types)))
@@ -651,11 +657,7 @@ STATUS is an alist of status names and their printable values."
                      (hugo--get-display-list items (intern type) max-title-width))))
          "\n"
          "Press `?' for help.")
-        (goto-char (if first-load
-                       (progn (goto-char (point-min))
-                              (search-forward "Blog root: " nil t)
-                              (line-beginning-position))
-                     (min pos (point-max))))
+        (goto-char (min pos (point-max)))
         (if window
             (force-window-update window)))))))
 
