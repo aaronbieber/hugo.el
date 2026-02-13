@@ -92,10 +92,10 @@
 (defvar hugo-minor-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c h s") 'hugo-status)
-    (define-key map (kbd "C-c h p") 'hugo-insert-post-url)
-    (define-key map (kbd "C-c h f") 'hugo-insert-post-url-by-search)
-    (define-key map (kbd "C-c h i") 'hugo-insert-image-url)
-    (define-key map (kbd "C-c h t") 'hugo-insert-time-string)
+    (define-key map (kbd "C-c h i p") 'hugo-insert-post-url)
+    (define-key map (kbd "C-c h i s") 'hugo-insert-post-url-by-search)
+    (define-key map (kbd "C-c h i i") 'hugo-insert-image-url)
+    (define-key map (kbd "C-c h i d") 'hugo-insert-date)
     (define-key map (kbd "C-c h b") 'hugo-browse)
     map)
   "A minor mode for interacting with Hugo.")
@@ -326,7 +326,7 @@ Examples:
           (add-to-invisibility-spec hidden))))
   (force-window-update (current-buffer)))
 
-(defun hugo-insert-time-string ()
+(defun hugo-insert-date ()
   "Insert a date and time string in the default Hugo format."
   (interactive)
   (let* ((tz (format "%+03d"
