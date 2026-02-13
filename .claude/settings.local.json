@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(hugo help:*)",
-      "Bash(hugo list:*)"
+      "Bash(hugo list:*)",
+      "WebSearch",
+      "WebFetch(domain:gohugo.io)",
+      "WebFetch(domain:yaml.org)"
     ],
     "deny": [],
     "ask": []

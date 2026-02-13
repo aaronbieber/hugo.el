@@ -96,6 +96,7 @@
     (define-key map (kbd "C-c h i s") 'hugo-insert-post-url-by-search)
     (define-key map (kbd "C-c h i i") 'hugo-insert-image-url)
     (define-key map (kbd "C-c h i d") 'hugo-insert-date)
+    (define-key map (kbd "C-c h i t") 'hugo-insert-taxonomy-value)
     (define-key map (kbd "C-c h b") 'hugo-browse)
     map)
   "A minor mode for interacting with Hugo.")
@@ -120,6 +121,9 @@
 
 (defvar hugo-last-image-path ""
   "The fully-qualified path of the last image inserted.")
+
+(defvar hugo--site-config-cache nil
+  "Cached parsed site configuration from `hugo config'.")
 
 (defvar hugo-server-address
   "http://localhost:1313"
@@ -412,6 +416,47 @@ is a bundle file, but
         (if fname
             (insert (concat "{{< ref \"" (file-name-base fname) "\" >}}"))
           (message "No file selected!"))))))
+
+(defun hugo-insert-taxonomy-value ()
+  "Insert a taxonomy value into the current buffer's YAML front matter.
+
+Prompts for a taxonomy name and then a value.  If the taxonomy key
+already exists in front matter, the value is appended as a new list
+item.  Otherwise the key and value are inserted before the closing
+front matter delimiter."
+  (interactive)
+  (let* ((taxonomy (completing-read "Taxonomy: " (hugo--get-taxonomy-names) nil t))
+         (values (hugo--get-taxonomy-values taxonomy))
+         (value (completing-read (format "%s: " (capitalize taxonomy)) values)))
+    (hugo--insert-taxonomy-entry taxonomy value)))
+
+(defun hugo--insert-taxonomy-entry (key value)
+  "Insert a taxonomy entry for KEY with VALUE into YAML front matter.
+
+If KEY already exists, append VALUE as a new list item after the
+last existing item.  If KEY does not exist, insert it with VALUE
+before the closing `---' delimiter."
+  (save-excursion
+    (goto-char (point-min))
+    (unless (looking-at "---\n")
+      (user-error "No YAML front matter found"))
+    (forward-line 1)
+    (let ((fm-start (point))
+          (fm-end (if (search-forward "\n---" nil t)
+                      (match-beginning 0)
+                    (user-error "No closing front matter delimiter found"))))
+      (goto-char fm-start)
+      (if (re-search-forward (concat "^" (regexp-quote key) ":\\s-*$") fm-end t)
+          ;; Key exists: find end of its list items and append
+          (progn
+            (forward-line 1)
+            (while (and (< (point) fm-end)
+                        (looking-at "\\s-*-\\s-+"))
+              (forward-line 1))
+            (insert "- " value "\n"))
+        ;; Key doesn't exist: insert before closing ---
+        (goto-char fm-end)
+        (insert "\n" key ":\n- " value)))))
 
 (defun hugo-toggle-command-window (&optional hide)
   "Toggle the display of a helpful command window.
@@ -1181,6 +1226,58 @@ succeeds, or nil if the command exits with a non-zero status."
           config-string
         nil))))
 
+(defun hugo--get-site-config ()
+  "Return the parsed site configuration, using the cache if available.
+
+Runs `hugo config --format json' and parses the result.  The parsed
+alist is cached in `hugo--site-config-cache' and returned on
+subsequent calls until the cache is cleared."
+  (or hugo--site-config-cache
+      (let ((default-directory (hugo--get-root)))
+        (with-temp-buffer
+          (let ((exit-code (call-process hugo-bin nil (current-buffer) nil
+                                         "config" "--format" "json")))
+            (if (zerop exit-code)
+                (setq hugo--site-config-cache
+                      (json-read-from-string (buffer-string)))
+              (error "hugo config exited with status %d" exit-code)))))))
+
+(defun hugo--clear-site-config-cache ()
+  "Clear the cached site configuration."
+  (setq hugo--site-config-cache nil))
+
+(defun hugo--get-taxonomy-names ()
+  "Return a list of configured taxonomy names (plural forms).
+
+These are the names used in front matter and as directory names
+under the publish directory."
+  (let ((taxonomies (cdr (assoc 'taxonomies (hugo--get-site-config)))))
+    (mapcar #'cdr taxonomies)))
+
+(defun hugo--get-taxonomy-values (taxonomy-name)
+  "Return a sorted list of known values for TAXONOMY-NAME.
+
+Values are read from subdirectory names under the publish
+directory, which Hugo populates during site generation."
+  (let* ((config (hugo--get-site-config))
+         (publish-dir (or (cdr (assoc 'publishDir config))
+                          (cdr (assoc 'publishdir config))
+                          "public"))
+         (taxonomy-dir (expand-file-name
+                        (file-name-as-directory taxonomy-name)
+                        (expand-file-name
+                         (file-name-as-directory publish-dir)
+                         (hugo--get-root)))))
+    (if (file-directory-p taxonomy-dir)
+        (sort (seq-filter
+               (lambda (name)
+                 (and (not (string-prefix-p "." name))
+                      (file-directory-p
+                       (expand-file-name name taxonomy-dir))))
+               (directory-files taxonomy-dir nil nil t))
+              #'string<)
+      (user-error "Taxonomy directory %s not found; has the site been built?" taxonomy-dir))))
+
 (defun hugo--get-line-type ()
   "Get the 'line type' property of the current line.
 
@@ -1202,6 +1299,7 @@ text property at position zero."
 Options WITH-DRAFTS, WITH-FUTURE, and WITH-EXPIRED correspond to
 the Hugo flags `buildDrafts', `buildFuture', and `buildExpired'."
   (hugo--setup)
+  (hugo--clear-site-config-cache)
   (let* ((default-directory (hugo--get-root))
          (buffer (hugo--prepare-server-buffer))
          (drafts-opt (if with-drafts " --buildDrafts" nil))
@@ -1255,7 +1353,8 @@ Standard arguments PROCESS and EVENT correspond to those documented in
         (event (replace-regexp-in-string "\n$" "" event)))
     (cond ((or (string-prefix-p "finished" event)
                (string-prefix-p "killed" event))
-           (progn (message "Hugo server has finished.")
+           (progn (hugo--clear-site-config-cache)
+                  (message "Hugo server has finished.")
                   (with-current-buffer (hugo--prepare-server-buffer)
                     (let ((inhibit-read-only t))
                       (erase-buffer)
