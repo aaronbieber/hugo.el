@@ -800,7 +800,7 @@ FACE-PROP."
       (if (eq (aref line pos) ?\")
           ;; Quoted field: find matching close quote.
           (let ((end (1+ pos)))
-            (while (< end len)
+            (cl-loop while (< end len) do
               (if (eq (aref line end) ?\")
                   (if (and (< (1+ end) len) (eq (aref line (1+ end)) ?\"))
                       (setq end (+ end 2)) ; escaped "" -> skip both
