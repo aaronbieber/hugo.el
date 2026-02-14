@@ -686,20 +686,32 @@ Otherwise, non-destructively insert the indicator after the heading."
 
 
          (cl-loop for type in types concat
-                  (let ((drafts (seq-filter (lambda (e) (equal (nth 6 e) "true"))
-                                            (cdr (assoc type all-items))))
-                        (items (seq-filter (lambda (e) (equal (nth 6 e) "false"))
-                                           (cdr (assoc type all-items)))))
+                  (let* ((drafts (seq-filter (lambda (e) (equal (nth 6 e) "true"))
+                                             (cdr (assoc type all-items))))
+                         (published (seq-filter (lambda (e) (equal (nth 6 e) "false"))
+                                                (cdr (assoc type all-items))))
+                         (pub-bundles (seq-filter #'hugo--is-branch-bundle-p published))
+                         (pub-regular (seq-filter (lambda (e) (not (hugo--is-branch-bundle-p e))) published))
+                         (type-sym (intern type))
+                         (separator-group (cond (pub-bundles 'bundles)
+                                                (drafts 'drafts))))
                     (concat
-                     (propertize " " 'thing t 'hidden (intern type) 'heading t)
+                     (propertize " " 'thing t 'hidden type-sym 'heading t)
                      (propertize (concat
                                   "      " (sentence-case (if (string= type "<root-pages>")
                                                                "Pages"
                                                              type)) ": "
-                                  (number-to-string (+ (length drafts) (length items))) "\n")
+                                  (number-to-string (+ (length drafts) (length published))) "\n")
                                  'face 'font-lock-function-name-face)
-                     (hugo--get-display-list drafts (intern type) max-title-width 'italic)
-                     (hugo--get-display-list items (intern type) max-title-width))))
+                     (let ((drafts-str (hugo--get-display-list drafts type-sym max-title-width 'italic)))
+                       (if (and pub-regular (eq separator-group 'drafts))
+                           (hugo--underline-last-entry drafts-str)
+                         drafts-str))
+                     (let ((bundles-str (hugo--get-display-list pub-bundles type-sym max-title-width)))
+                       (if (and pub-regular (eq separator-group 'bundles))
+                           (hugo--underline-last-entry bundles-str)
+                         bundles-str))
+                     (hugo--get-display-list pub-regular type-sym max-title-width))))
          "\n"
          "Press `?' for help.")
         (goto-char (min pos (point-max)))
@@ -790,6 +802,21 @@ FACE-PROP."
                           (propertize date 'face 'hugo-date-face)
                           "\n"))))
     (propertize thing-list 'invisible visibility-name)))
+
+(defun hugo--underline-last-entry (display-str)
+  "Add underline from title start to date end on the last entry of DISPLAY-STR.
+
+Each entry line has the structure: 1-char marker, 10 spaces, title,
+padding, date, newline.  The underline spans from the title through
+the date."
+  (when (> (length display-str) 0)
+    (let* ((last-nl (1- (length display-str)))
+           (prev-nl (string-match-p "\n[^\n]*\n\\'" display-str))
+           (line-start (if prev-nl (1+ prev-nl) 0))
+           (ul-start (+ line-start 11))
+           (ul-end last-nl))
+      (add-face-text-property ul-start ul-end '(:underline t) nil display-str)))
+  display-str)
 
 (defun hugo--parse-csv-line (line)
   "Parse a single CSV LINE into a list of field strings."
