@@ -1477,12 +1477,15 @@ Returns a list of (filename . line-content) pairs for matches."
 Returns the selected filename or nil if cancelled."
   (when matches
     (let* ((candidates (mapcar (lambda (match)
-                                (let ((file (car match))
-                                      (line (cdr match)))
-                                  (cons (format "%s: %s"
-                                               (file-name-nondirectory file)
-                                               (string-trim line))
-                                        file)))
+                                (let* ((file (car match))
+                                       (line (cdr match))
+                                       (name (file-name-nondirectory file))
+                                       (display-name (if (member (file-name-base name) '("index" "_index"))
+                                                         (file-name-nondirectory
+                                                          (directory-file-name
+                                                           (file-name-directory file)))
+                                                       name)))
+                                  (cons (format "%s: %s" display-name (string-trim line)) file)))
                               matches))
            (selection (completing-read "Select match: " candidates nil t)))
       (cdr (assoc selection candidates)))))
