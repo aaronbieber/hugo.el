@@ -242,10 +242,13 @@ Examples:
   (interactive)
   (let ((hugo-buffer (hugo--setup t)))
     (if hugo-buffer
-        (progn (pop-to-buffer hugo-buffer)
-               (hugo--show-working-indicator hugo-buffer)
-               (redisplay)
-               (hugo--draw-status hugo-buffer)))))
+        (if (with-current-buffer hugo-buffer
+              (> (buffer-size) 0))
+            (pop-to-buffer hugo-buffer)
+          (pop-to-buffer hugo-buffer)
+          (hugo--show-working-indicator hugo-buffer)
+          (redisplay)
+          (hugo--draw-status hugo-buffer)))))
 
 (defun hugo-refresh-status ()
   "Refresh the status display."
