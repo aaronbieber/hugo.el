@@ -493,9 +493,13 @@ it exists and do nothing otherwise."
     (if choice
         (cond ((eq choice ?s)
                (hugo-toggle-command-window t)
+               (hugo--show-working-indicator (current-buffer))
+               (redisplay)
                (hugo--start-server-process drafts future expired))
               ((eq choice ?k)
                (progn (hugo-toggle-command-window t)
+                      (hugo--show-working-indicator (current-buffer))
+                      (redisplay)
                       (message "Stopping server...")
                       (hugo--stop-server-process)))))))
 
