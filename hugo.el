@@ -1190,7 +1190,7 @@ If REVERSE is not nil, move to the previous visible 'thing."
   (goto-char (or (let ((start (point)))
                    (if reverse
                        (beginning-of-line)
-                     (end-of-line))
+                     (goto-char (line-beginning-position 2)))
                    (let* (destination)
                      (while (not destination)
                        (let ((next-candidate (if reverse
