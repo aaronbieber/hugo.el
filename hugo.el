@@ -705,7 +705,7 @@ Otherwise, non-destructively insert the indicator after the heading."
                     (concat
                      (propertize " " 'thing t 'hidden type-sym 'heading t)
                      (propertize (concat
-                                  "      " (sentence-case (if (string= type "<root-pages>")
+                                  "      " (sentence-case (if (string= type "<Root page>")
                                                                "Pages"
                                                              type)) ": "
                                   (number-to-string (+ (length drafts) (length published))) "\n")
@@ -921,13 +921,13 @@ by the Hugo docs."
                                 (let ((path-parts (split-string (car i) "/")))
                                   (list (if (> (length path-parts) 2)
                                             (nth 1 path-parts)      ; Regular section
-                                          "<root-pages>"))))        ; Sentinel for root-level pages
+                                          "<Root page>"))))         ; Sentinel for root-level pages
                               all-items)))
          (content-items (reduce (lambda (seq item)
                                   (let* ((path-parts (split-string (car item) "/"))
                                          (type (if (> (length path-parts) 2)
                                                    (nth 1 path-parts)   ; Regular section
-                                                 "<root-pages>")))      ; Sentinel for root-level pages
+                                                 "<Root page>")))       ; Sentinel for root-level pages
                                     (push item (cdr (assoc type seq)))
                                     seq))
                                 all-items
@@ -1050,14 +1050,19 @@ This function returns the char value from CHOICES selected by the user."
 (defun hugo--create-content (kind name)
   "Create a new Hugo content file of KIND, having NAME."
   (hugo--run-hugo-command
-   (concat "new " (concat (file-name-as-directory "content")
-                          (file-name-as-directory kind)
-                          (if hugo-create-post-bundles
-                              (concat (file-name-as-directory
-                                       (hugo--create-content-basename name))
-                                      "index")
-                            (hugo--create-content-basename name))
-                          hugo-post-extension))))
+   (concat "new "
+           (if (equal kind "<Root page>")
+               (concat (file-name-as-directory "content")
+                       (hugo--create-content-basename name)
+                       hugo-post-extension)
+             (concat (file-name-as-directory "content")
+                     (file-name-as-directory kind)
+                     (if hugo-create-post-bundles
+                         (concat (file-name-as-directory
+                                  (hugo--create-content-basename name))
+                                 "index")
+                       (hugo--create-content-basename name))
+                     hugo-post-extension)))))
 
 (defun hugo--create-content-basename (name)
   "Create a Hugo content basename from a human-readable NAME.
