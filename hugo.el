@@ -222,7 +222,7 @@ as `/content/posts/newpost/index.md'."
   :group 'hugo)
 
 (defcustom hugo-date-format
-  "%B %-d, %Y"
+  "%a, %b %-d, %Y"
   "Format string for displaying dates in the Hugo status buffer.
 
 This should be a format string suitable for `format-time-string'.
